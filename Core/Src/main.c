@@ -150,6 +150,12 @@ int main(void)
   	bool bme280p = bmp280.id == BME280_CHIP_ID;
   	size = sprintf((char *)Data, "BMP280: found %s\n", bme280p ? "BME280" : "BMP280");
   	HAL_UART_Transmit(&huart1, Data, size, 1000);
+
+  	uint8_t settings = 0x08; // Włącz tryb pomiaru (Measure bit)
+  	HAL_I2C_Mem_Write(&hi2c1, (0x53 << 1), 0x2D, I2C_MEMADD_SIZE_8BIT, &settings, 1, 100);
+
+  	uint8_t data[6];
+  	int16_t x, y, z;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -181,6 +187,18 @@ int main(void)
 	  HAL_UART_Transmit(&huart1, Data, size, 1000);
 	  isSend = LoRa_transmit(&myLoRa, Data, size, 500) + 48;
 	  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+	  HAL_Delay(500);
+
+	  // Przykład dla ADXL345 (rejestr początkowy 0x32)
+	  HAL_I2C_Mem_Read(&hi2c1, 0xA6, 0x32, I2C_MEMADD_SIZE_8BIT, data, 6, 100);
+
+	  x = (int16_t)(data[1] << 8 | data[0]); // Kolejność bajtów zależy od sensora
+	  y = (int16_t)(data[3] << 8 | data[2]);
+	  z = (int16_t)(data[5] << 8 | data[4]);
+
+	  size = sprintf((char *)Data,"Z: %hd\n\r", z);
+	  isSend = LoRa_transmit(&myLoRa, Data, size, 500) + 48;
+
 	  HAL_Delay(2000);
     /* USER CODE END WHILE */
 
