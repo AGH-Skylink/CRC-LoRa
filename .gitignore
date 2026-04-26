@@ -1,0 +1,21 @@
+# Foldery z wynikami kompilacji
+Debug/
+Release/
+build/
+
+# Skompilowane pliki binarne i obiekty (na wypadek gdyby znalazły się poza folderami build)
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.su
+
+# Pliki konfiguracyjne debuggera (często zawierają ścieżki specyficzne dla danego komputera)
+*.launch
+
+# Ukryte pliki systemowe
+.DS_Store
+Thumbs.db
