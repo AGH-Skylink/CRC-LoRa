@@ -135,7 +135,7 @@ int main(void)
   	// START CONTINUOUS RECEIVING -----------------------------------
   	LoRa_startReceiving(&myLoRa);
   	//---------------------------------------------------------------
-  	HAL_UART_Transmit(&huart1, "Hello world!", 12, HAL_MAX_DELAY);
+  	HAL_UART_Transmit(&huart1, "Start Task!\n\r", 13, HAL_MAX_DELAY);
 
   	bmp280_init_default_params(&bmp280.params);
   	bmp280.addr = BMP280_I2C_ADDRESS_0;
@@ -184,9 +184,8 @@ int main(void)
 	  }
 
 	  size = sprintf((char *)Data,"Pressure: %.2f Pa\n\r",	pressure);
-	  HAL_UART_Transmit(&huart1, Data, size, 1000);
 	  isSend = LoRa_transmit(&myLoRa, Data, size, 500) + 48;
-	  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+//	  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
 	  HAL_Delay(500);
 
 	  // Przykład dla ADXL345 (rejestr początkowy 0x32)
@@ -198,6 +197,7 @@ int main(void)
 
 	  size = sprintf((char *)Data,"Z: %hd\n\r", z);
 	  isSend = LoRa_transmit(&myLoRa, Data, size, 500) + 48;
+	  HAL_UART_Transmit(&huart1, "Data Transmit!\n\r", 16, 1000);
 
 	  HAL_Delay(2000);
     /* USER CODE END WHILE */
