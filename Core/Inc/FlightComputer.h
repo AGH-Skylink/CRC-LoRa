@@ -86,18 +86,38 @@ typedef struct{
 	BaroThermo barothermo;
 
 	// Telemetria
-	uint8_t preamble;
 	int32_t time;
-	int8_t gpio_state
+	int8_t gpio_state;
 	int16_t battery_voltage;
 	int8_t RSSI;
+
+	uint8_t telemetry_frame[62];
+	/*
+		0 - preambuła
+		1-4 - timestamp
+		5 - stan
+		6 - ostatnia komenda
+		7-8 - ciśnienie
+		9-10 - temperatura
+		11-16 - magnetometr x,y,z
+		17-22 - akcelerometr x,y,z
+		23-28 - żyroskop x,y,z
+		29-30 - ciśnienie imu
+		31-32 - temperatura imu
+		33-52 - GPS (TBD)
+		53 - GPIO state
+		54-55 - napięcie na baterii
+		56 - RSSI
+		57-58 - CRC (upewnić się czy potrzebne)
+		59-61 - zakończenie (\n\r\0)
+	*/
 
 } FlightComputer;
 
 void Sensors_read(FlightComputer* flight_computer);
 void Sensors_bypass(FlightComputer* flight_computer);
 
-void FlightComputer_init(FlightComputer* flight_computer);
+void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi, GPIO_TypeDef *lora_port, uint16_t lora_pin);
 void FlightComputer_loop(FlightComputer* flight_computer);
 
 void StateMachine_idle(FlightComputer* flight_computer);

@@ -21,10 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
-#include <stdlib.h>
-#include "LoRa.h"
-#include "bmp280.h"
+#include "FlightComputer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,23 +49,17 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
-LoRa myLoRa;
-uint8_t read_data[128];
-uint8_t send_data[128];
-int			RSSI;
-uint8_t isSend = 0;
-
 /* Private variables ---------------------------------------------------------*/
 
-BMP280_HandleTypedef bmp280;
+FlightComputer flight_computer;
 
-float pressure, temperature, humidity;
+uint32_t time_buff;
+//uint32_t time_diff;
 
-uint16_t size;
-uint8_t Data[256];
+uint8_t read_data[128];
+uint8_t send_data[128];
 
 #define GPS_BUF_SIZE 128
-
 uint8_t gps_raw_data[GPS_BUF_SIZE];
 /* USER CODE END PV */
 
@@ -124,30 +115,39 @@ int main(void)
   MX_I2C1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  // MODULE SETTINGS ----------------------------------------------
-  	myLoRa = newLoRa();
+  	uint8_t isSend = 65;
+  	HAL_Delay(5000);
+  	HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+  	HAL_Delay(1000);
+  	FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin);
+  	/*flight_computer.LoRa = newLoRa();
 
-  	myLoRa.hSPIx                 = &hspi1;
-  	myLoRa.CS_port               = CS_Lora_GPIO_Port;
-  	myLoRa.CS_pin                = CS_Lora_Pin;
+  		flight_computer.LoRa.hSPIx                 = &hspi1;
+  		flight_computer.LoRa.CS_port               = CS_Lora_GPIO_Port;
+  		flight_computer.LoRa.CS_pin                = CS_Lora_Pin;
 
-  	myLoRa.frequency             = 433;							  // default = 433 MHz
-  	myLoRa.spredingFactor        = SF_7;							// default = SF_7
-  	myLoRa.bandWidth			       = BW_125KHz;				  // default = BW_125KHz
-  	myLoRa.crcRate				       = CR_4_5;						// default = CR_4_5
-  	myLoRa.power					       = POWER_20db;				// default = 20db
-  	myLoRa.overCurrentProtection = 120; 							// default = 100 mA
-  	myLoRa.preamble				 = 10;		  					// default = 8;
+  		flight_computer.LoRa.frequency             = 433;							  // default = 433 MHz
+  		flight_computer.LoRa.spredingFactor        = SF_7;							// default = SF_7
+  		flight_computer.LoRa.bandWidth			       = BW_125KHz;				  // default = BW_125KHz
+  		flight_computer.LoRa.crcRate				       = CR_4_5;						// default = CR_4_5
+  		flight_computer.LoRa.power					       = POWER_20db;				// default = 20db
+  		flight_computer.LoRa.overCurrentProtection = 120; 							// default = 100 mA
+  		flight_computer.LoRa.preamble				 = 10;		  					// default = 8;
 
-  	LoRa_reset(&myLoRa);
-  	LoRa_init(&myLoRa);
+  		LoRa_reset(&(flight_computer.LoRa));
+  		LoRa_init(&(flight_computer.LoRa));
+  		LoRa_startReceiving(&(flight_computer.LoRa));
 
-  	// START CONTINUOUS RECEIVING -----------------------------------
-  	LoRa_startReceiving(&myLoRa);
+  		// TELEMETRIA
+  		flight_computer.telemetry_frame[0] = 0x24; // $
+  		flight_computer.telemetry_frame[59] = 0x0A; // \n
+  		flight_computer.telemetry_frame[60] = 0x0D; // \r
+  		flight_computer.telemetry_frame[61] = 0x00; // \0*/
+
   	//---------------------------------------------------------------
-  	HAL_UART_Transmit(&huart1, "Start Task!\n\r", 13, HAL_MAX_DELAY);
+  	//HAL_UART_Transmit(&huart1, "Start Task!\n\r", 13, HAL_MAX_DELAY);
 
-  	bmp280_init_default_params(&bmp280.params);
+  	/*bmp280_init_default_params(&bmp280.params);
   	bmp280.addr = BMP280_I2C_ADDRESS_0;
   	bmp280.i2c = &hi2c1;
 
@@ -165,22 +165,37 @@ int main(void)
   	HAL_I2C_Mem_Write(&hi2c1, (0x53 << 1), 0x2D, I2C_MEMADD_SIZE_8BIT, &settings, 1, 100);
 
   	uint8_t data[6];
-  	int16_t x, y, z;
+  	int16_t x, y, z;*/
 
   	// Startujemy odbiór przez DMA
-  	HAL_UART_Receive_DMA(&huart2, gps_raw_data, GPS_BUF_SIZE);
+  	//HAL_UART_Receive_DMA(&huart2, gps_raw_data, GPS_BUF_SIZE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  time_buff = HAL_GetTick();
+	  flight_computer.telemetry_frame[1] = (uint8_t)(time_buff >> 24);
+	  flight_computer.telemetry_frame[2] = (uint8_t)(time_buff >> 16);
+	  flight_computer.telemetry_frame[3] = (uint8_t)(time_buff >> 8);
+	  flight_computer.telemetry_frame[4] = (uint8_t)time_buff;
+	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;
+	  /*time_diff = HAL_GetTick() - time_buff;
+	  flight_computer.telemetry_frame[1] = 0x01;//(uint8_t)(time_buff >> 24);
+	  flight_computer.telemetry_frame[2] = (uint8_t)(time_diff >> 16);
+	  flight_computer.telemetry_frame[3] = (uint8_t)(time_diff >> 8);
+	  flight_computer.telemetry_frame[4] = (uint8_t)time_diff;
+	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;*/
+	  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+	  //HAL_Delay(100);
+
 	  // Prosty test - przekierowanie na inny UART (jeśli masz podpięty ST-Link)
-	  HAL_UART_Transmit(&huart1, gps_raw_data, GPS_BUF_SIZE, 100);
-	  HAL_Delay(1000);
+	 /*HAL_UART_Transmit(&huart1, gps_raw_data, GPS_BUF_SIZE, 100);
+	  HAL_Delay(1000);*/
 
 	  // SENDING DATA - - - - - - - - - - - - - - - - - - - - - - - - -
-	  send_data[0] = 0x44;
+	  /*send_data[0] = 0x44;
 	  send_data[1] = 0x7A;
 	  send_data[2] = 0x69;
 	  send_data[3] = 0x65;
@@ -190,10 +205,13 @@ int main(void)
 	  send_data[7] = 0x0D;
 	  send_data[8] = 0x0A;
 
+	  isSend = LoRa_transmit(&(flight_computer.LoRa), send_data, 9, 500) + 48;
+	  HAL_UART_Transmit(&huart1, send_data, 3, 100);*/
+
 	  // RECEIVING DATA - - - - - - - - - - - - - - - - - - - - - - - -
 	  //LoRa_receive(&myLoRa, read_data, 128);
 
-	  HAL_Delay(100);
+	  /*HAL_Delay(100);
 	  while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {
 		  size = sprintf((char *)Data, "Temperature/pressure reading failed\n");
 		  HAL_UART_Transmit(&huart1, Data, size, 1000);
@@ -216,7 +234,7 @@ int main(void)
 	  isSend = LoRa_transmit(&myLoRa, Data, size, 500) + 48;
 	  HAL_UART_Transmit(&huart1, "Data Transmit!\n\r", 16, 1000);
 
-	  HAL_Delay(2000);
+	  HAL_Delay(2000);*/
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
