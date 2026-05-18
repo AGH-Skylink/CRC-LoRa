@@ -127,14 +127,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 500);
+	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);
 	  HAL_Delay(1000);
-
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1500);
-	  HAL_Delay(1000);
-
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2500);
-	  HAL_Delay(1000);
+//	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 500);
+//	  HAL_Delay(1000);
+//
+//	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1500);
+//	  HAL_Delay(1000);
+//
+//	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2500);
+//	  HAL_Delay(1000);
 
     /* USER CODE END WHILE */
 
@@ -421,12 +423,15 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_Lora_GPIO_Port, CS_Lora_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : CS_Lora_Pin */
-  GPIO_InitStruct.Pin = CS_Lora_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(test_led_GPIO_Port, test_led_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : CS_Lora_Pin test_led_Pin */
+  GPIO_InitStruct.Pin = CS_Lora_Pin|test_led_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_Lora_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
