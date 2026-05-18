@@ -22,6 +22,10 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "FlightComputer.h"
+#include <string.h>
+#include <stdio.h>
+
+#include "minmea.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,18 +55,10 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
-/* Private variables ---------------------------------------------------------*/
+char gps_line[MINMEA_MAX_SENTENCE_LENGTH];
+uint8_t gps_char;
+uint8_t gps_idx = 0;
 
-FlightComputer flight_computer;
-
-uint32_t time_buff;
-//uint32_t time_diff;
-
-uint8_t read_data[128];
-uint8_t send_data[128];
-
-#define GPS_BUF_SIZE 128
-uint8_t gps_raw_data[GPS_BUF_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -119,7 +115,6 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
 
   /* USER CODE END 2 */
 
@@ -127,15 +122,55 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 500);
-	  HAL_Delay(1000);
+	  if (HAL_UART_Receive(&huart2, &gps_char, 1, 100) == HAL_OK)
+	  {
+		  if (gps_char == '\n' || gps_idx >= MINMEA_MAX_SENTENCE_LENGTH - 1)
+		  {
+			  gps_line[gps_idx] = '\0';
+			  gps_idx = 0;
 
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1500);
-	  HAL_Delay(1000);
+			  // parsuj linię
+			  switch (minmea_sentence_id(gps_line, false))
+			  {
+			  	  case MINMEA_SENTENCE_GGA: {
+			  		  struct minmea_sentence_gga frame;
+			  		  if (minmea_parse_gga(&frame, gps_line)) {
+			  			  char buf[128];
+			  			  snprintf(buf, sizeof(buf),
+			  					  "FIX:%d SATS:%d LAT:%f LON:%f ALT:%fm\r\n",
+								  frame.fix_quality,
+								  frame.satellites_tracked,
+								  minmea_tocoord(&frame.latitude),
+								  minmea_tocoord(&frame.longitude),
+								  minmea_tofloat(&frame.altitude));
+			  			  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
+			  		  }
+			  	  } break;
 
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2500);
-	  HAL_Delay(1000);
+			  	  	  case MINMEA_SENTENCE_RMC: {
+			  	  		  struct minmea_sentence_rmc frame;
+			  	  		  if (minmea_parse_rmc(&frame, gps_line)) {
+			  	  			  char buf[128];
+			  	  			  snprintf(buf, sizeof(buf),
+			  	  					  "SPD:%f kt HDG:%f\r\n",
+									  minmea_tofloat(&frame.speed),
+									  minmea_tofloat(&frame.course));
+			  	  			  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
+			  	  		  }
+			  	  	  } break;
 
+			  	  	  default: {
+			  	  		  char buf[128];
+			  	  		  snprintf(buf, sizeof(buf), "RAW: %s\r\n", gps_line);
+			  	  		  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
+			  	  	  } break;
+			  }
+		  }
+		  else
+		  {
+			  gps_line[gps_idx++] = gps_char;
+		  }
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
