@@ -7,6 +7,7 @@
  */
 
 #include "FlightComputer.h"
+#define bmp280 flight_computer->barothermo.handle
 
 void Sensors_read(FlightComputer* flight_computer){
 
@@ -20,7 +21,8 @@ void LoRa_send_telemetry(FlightComputer* flight_computer){
 
 }
 
-void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi, GPIO_TypeDef *lora_port, uint16_t lora_pin){
+void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c){
 
 	// LORA
 	flight_computer->LoRa = newLoRa();
@@ -52,9 +54,16 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	flight_computer->telemetry_frame[3] = 0x31; // \r
 	flight_computer->telemetry_frame[4] = 0x31; // \0*/
 
-	//bmp280_init_default_params(&(bmp280.params);
-	//bmp280.addr = BMP280_I2C_ADDRESS_0;
-	//bmp280.i2c = &hi2c1;
+	/*bmp280_init_default_params(&(bmp280.params);
+	bmp280.addr = BMP280_I2C_ADDRESS_0;
+	bmp280.i2c = &hi2c1;*/
+
+	// Inicjalizacja IMU
+	uint8_t settings = 0x08;
+	HAL_I2C_Mem_Write(hi2c, 0x53 << 1, 0x2D, 1, &settings, 1, 100);
+	settings = 0x00;
+	HAL_I2C_Mem_Write(hi2c, 0x68 << 1, 0x3E, 1, &settings, 1, 100);
+	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x02, 1, &settings, 1, 100);
 }
 
 void StateMachine_idle(FlightComputer* flight_computer){

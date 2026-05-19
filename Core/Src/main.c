@@ -41,6 +41,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 SPI_HandleTypeDef hspi1;
 
@@ -59,7 +60,8 @@ uint32_t time_buff;
 //uint32_t time_diff;
 
 uint8_t read_data[128];
-uint8_t send_data[128];
+uint8_t received_data[128];
+uint8_t bytesRecv = 0;
 
 #define GPS_BUF_SIZE 128
 uint8_t gps_raw_data[GPS_BUF_SIZE];
@@ -123,7 +125,7 @@ int main(void)
   	HAL_Delay(5000);
   	HAL_UART_Transmit(&huart1, &isSend, 1, 100);
   	HAL_Delay(1000);
-  	FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin);
+  	FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1);
   	/*flight_computer.LoRa = newLoRa();
 
   		flight_computer.LoRa.hSPIx                 = &hspi1;
@@ -184,6 +186,30 @@ int main(void)
 	  flight_computer.telemetry_frame[2] = (uint8_t)(time_buff >> 16);
 	  flight_computer.telemetry_frame[3] = (uint8_t)(time_buff >> 8);
 	  flight_computer.telemetry_frame[4] = (uint8_t)time_buff;
+
+	  //Odczyty z IMU
+	  HAL_I2C_Mem_Read(&hi2c1, 0x53 << 1, 0x32, 1, read_data, 6, 100);
+	  flight_computer.telemetry_frame[17] = read_data[1];
+	  flight_computer.telemetry_frame[18] = read_data[0];
+	  flight_computer.telemetry_frame[19] = read_data[3];
+	  flight_computer.telemetry_frame[20] = read_data[2];
+	  flight_computer.telemetry_frame[21] = read_data[5];
+	  flight_computer.telemetry_frame[22] = read_data[4];
+	  HAL_I2C_Mem_Read(&hi2c1, 0x68 << 1, 0x1D, 1, read_data, 6, 100);
+	  flight_computer.telemetry_frame[23] = read_data[0];
+	  flight_computer.telemetry_frame[24] = read_data[1];
+	  flight_computer.telemetry_frame[25] = read_data[2];
+	  flight_computer.telemetry_frame[26] = read_data[3];
+	  flight_computer.telemetry_frame[27] = read_data[4];
+	  flight_computer.telemetry_frame[28] = read_data[5];
+	  HAL_I2C_Mem_Read(&hi2c1, 0x1E << 1, 0x03, 1, read_data, 6, 100);
+	  flight_computer.telemetry_frame[11] = read_data[0];
+	  flight_computer.telemetry_frame[12] = read_data[1];
+	  flight_computer.telemetry_frame[13] = read_data[4];
+	  flight_computer.telemetry_frame[14] = read_data[5];
+	  flight_computer.telemetry_frame[15] = read_data[2];
+	  flight_computer.telemetry_frame[16] = read_data[3];
+
 	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;
 	  /*time_diff = HAL_GetTick() - time_buff;
 	  flight_computer.telemetry_frame[1] = 0x01;//(uint8_t)(time_buff >> 24);
@@ -191,8 +217,20 @@ int main(void)
 	  flight_computer.telemetry_frame[3] = (uint8_t)(time_diff >> 8);
 	  flight_computer.telemetry_frame[4] = (uint8_t)time_diff;
 	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;*/
-	  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
-	  //HAL_Delay(100);
+	  HAL_UART_Transmit(&huart1,&(flight_computer.telemetry_frame[0]), 62, 100);
+	  //HAL_UART_Transmit(&huart1,&isSend, 1, 100);
+
+	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 128);
+	  if(bytesRecv > 0){
+		  if(received_data[0] == 8){
+			  received_data[1] = 0x0A; // \n
+			  received_data[2] = 0x0D; // \r
+			  received_data[3] = 0x00; // \0
+			  HAL_UART_Transmit(&huart1,received_data, 4, 100);
+		  }
+	  }
+
+	  HAL_Delay(1000);
 
 	  // Prosty test - przekierowanie na inny UART (jeśli masz podpięty ST-Link)
 	 /*HAL_UART_Transmit(&huart1, gps_raw_data, GPS_BUF_SIZE, 100);
@@ -377,7 +415,6 @@ static void MX_TIM3_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM3_Init 1 */
 
@@ -397,28 +434,15 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
 
 }
 
@@ -498,6 +522,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);

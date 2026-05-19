@@ -117,7 +117,8 @@ typedef struct{
 void Sensors_read(FlightComputer* flight_computer);
 void Sensors_bypass(FlightComputer* flight_computer);
 
-void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi, GPIO_TypeDef *lora_port, uint16_t lora_pin);
+void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c);
 void FlightComputer_loop(FlightComputer* flight_computer);
 
 void StateMachine_idle(FlightComputer* flight_computer);
