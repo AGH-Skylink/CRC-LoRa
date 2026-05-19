@@ -181,6 +181,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
 	  time_buff = HAL_GetTick();
 	  flight_computer.telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	  flight_computer.telemetry_frame[2] = (uint8_t)(time_buff >> 16);
@@ -210,6 +211,13 @@ int main(void)
 	  flight_computer.telemetry_frame[15] = read_data[2];
 	  flight_computer.telemetry_frame[16] = read_data[3];
 
+	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 128)+48;
+	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
+	  if(bytesRecv - 48 > 0){
+	  	  flight_computer.telemetry_frame[6] = received_data[0];
+	  }
+	  LoRa_startReceiving(&(flight_computer.LoRa));
+
 	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;
 	  /*time_diff = HAL_GetTick() - time_buff;
 	  flight_computer.telemetry_frame[1] = 0x01;//(uint8_t)(time_buff >> 24);
@@ -217,18 +225,8 @@ int main(void)
 	  flight_computer.telemetry_frame[3] = (uint8_t)(time_diff >> 8);
 	  flight_computer.telemetry_frame[4] = (uint8_t)time_diff;
 	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;*/
-	  HAL_UART_Transmit(&huart1,&(flight_computer.telemetry_frame[0]), 62, 100);
+	  //HAL_UART_Transmit(&huart1,&(flight_computer.telemetry_frame[0]), 62, 100);
 	  //HAL_UART_Transmit(&huart1,&isSend, 1, 100);
-
-	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 128);
-	  if(bytesRecv > 0){
-		  if(received_data[0] == 8){
-			  received_data[1] = 0x0A; // \n
-			  received_data[2] = 0x0D; // \r
-			  received_data[3] = 0x00; // \0
-			  HAL_UART_Transmit(&huart1,received_data, 4, 100);
-		  }
-	  }
 
 	  HAL_Delay(1000);
 
