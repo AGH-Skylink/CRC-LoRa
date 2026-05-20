@@ -3,7 +3,7 @@
  *
  *  Created on: May 11, 2026
  *      Authors: Julia Brąglewicz
- *      		 Franciszek Ślusarczyk
+ *
  */
 
 #ifndef INC_FLIGHTCOMPUTER_H_

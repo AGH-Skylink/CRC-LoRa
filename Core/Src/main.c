@@ -203,13 +203,20 @@ int main(void)
 	  flight_computer.telemetry_frame[26] = read_data[3];
 	  flight_computer.telemetry_frame[27] = read_data[4];
 	  flight_computer.telemetry_frame[28] = read_data[5];
-	  HAL_I2C_Mem_Read(&hi2c1, 0x1E << 1, 0x03, 1, read_data, 6, 100);
+	  HAL_I2C_Mem_Read(&hi2c1, 0x1E << 1, 0x03, 1, read_data, 6, HAL_MAX_DELAY);
 	  flight_computer.telemetry_frame[11] = read_data[0];
 	  flight_computer.telemetry_frame[12] = read_data[1];
 	  flight_computer.telemetry_frame[13] = read_data[4];
 	  flight_computer.telemetry_frame[14] = read_data[5];
 	  flight_computer.telemetry_frame[15] = read_data[2];
 	  flight_computer.telemetry_frame[16] = read_data[3];
+	  /*HAL_I2C_Mem_Read(&hi2c1, 0x1E << 1, 0x0A, 1, read_data, 3, 100);
+	  flight_computer.telemetry_frame[11] = read_data[0];
+	  flight_computer.telemetry_frame[12] = read_data[1];
+	  flight_computer.telemetry_frame[13] = read_data[2];
+	  flight_computer.telemetry_frame[14] = read_data[0];
+	  flight_computer.telemetry_frame[15] = read_data[1];
+	  flight_computer.telemetry_frame[16] = read_data[2];*/
 
 	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 128)+48;
 	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);

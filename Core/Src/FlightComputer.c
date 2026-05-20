@@ -3,7 +3,7 @@
  *
  *  Created on: May 11, 2026
  *      Authors: Julia Brąglewicz
- *      		 Franciszek Ślusarczyk
+ *
  */
 
 #include "FlightComputer.h"
@@ -59,11 +59,25 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	bmp280.i2c = &hi2c1;*/
 
 	// Inicjalizacja IMU
+
+	/*uint8_t v;
+	v = 0x70;
+	HAL_I2C_Mem_Write(hi2c, 0x1E<<1, 0x00, 1, &v, 1, 100);
+	v = 0x20;
+	HAL_I2C_Mem_Write(hi2c, 0x1E<<1, 0x01, 1, &v, 1, 100);
+	v = 0x00;
+	HAL_I2C_Mem_Write(hi2c, 0x1E<<1, 0x02, 1, &v, 1, 100);*/
+
 	uint8_t settings = 0x08;
 	HAL_I2C_Mem_Write(hi2c, 0x53 << 1, 0x2D, 1, &settings, 1, 100);
 	settings = 0x00;
 	HAL_I2C_Mem_Write(hi2c, 0x68 << 1, 0x3E, 1, &settings, 1, 100);
+	settings = 0x03;
+	HAL_I2C_Mem_Write(hi2c, 0x68 << 1, 0x16, 1, &settings, 1, 100);
+	settings = 0x00;
 	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x02, 1, &settings, 1, 100);
+	settings = 0x00;
+	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x01, 1, &settings, 1, 100);
 }
 
 void StateMachine_idle(FlightComputer* flight_computer){
