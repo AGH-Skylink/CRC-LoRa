@@ -62,6 +62,7 @@ uint32_t time_buff;
 uint8_t read_data[128];
 uint8_t received_data[128];
 uint8_t bytesRecv = 0;
+uint8_t parachuteCnt = 0;
 
 #define GPS_BUF_SIZE 128
 uint8_t gps_raw_data[GPS_BUF_SIZE];
@@ -218,14 +219,25 @@ int main(void)
 	  flight_computer.telemetry_frame[15] = read_data[1];
 	  flight_computer.telemetry_frame[16] = read_data[2];*/
 
-	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 128)+48;
+	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 1);
 	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
-	  if(bytesRecv - 48 > 0){
+	  if(bytesRecv > 0){
 	  	  flight_computer.telemetry_frame[6] = received_data[0];
+	  	  if(received_data[0] == 8)
+	  	  {
+	  		  parachuteCnt = 20;
+	  	  }
 	  }
-	  LoRa_startReceiving(&(flight_computer.LoRa));
+
+	  if(parachuteCnt > 0){
+		  parachuteCnt = parachuteCnt -1;
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
+	  }else{
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+	  }
 
 	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;
+	  LoRa_startReceiving(&(flight_computer.LoRa));
 	  /*time_diff = HAL_GetTick() - time_buff;
 	  flight_computer.telemetry_frame[1] = 0x01;//(uint8_t)(time_buff >> 24);
 	  flight_computer.telemetry_frame[2] = (uint8_t)(time_diff >> 16);
@@ -235,7 +247,7 @@ int main(void)
 	  //HAL_UART_Transmit(&huart1,&(flight_computer.telemetry_frame[0]), 62, 100);
 	  //HAL_UART_Transmit(&huart1,&isSend, 1, 100);
 
-	  HAL_Delay(1000);
+	  HAL_Delay(10);
 
 	  // Prosty test - przekierowanie na inny UART (jeśli masz podpięty ST-Link)
 	 /*HAL_UART_Transmit(&huart1, gps_raw_data, GPS_BUF_SIZE, 100);
@@ -556,12 +568,21 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_Lora_GPIO_Port, CS_Lora_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : CS_Lora_Pin */
-  GPIO_InitStruct.Pin = CS_Lora_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : CS_Lora_Pin led_parachute_Pin */
+  GPIO_InitStruct.Pin = CS_Lora_Pin|led_parachute_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_Lora_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

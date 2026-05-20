@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define MOSI_GPIO_Port GPIOA
 #define CS_Lora_Pin GPIO_PIN_8
 #define CS_Lora_GPIO_Port GPIOA
+#define led_parachute_Pin GPIO_PIN_11
+#define led_parachute_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
