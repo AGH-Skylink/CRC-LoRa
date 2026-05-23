@@ -182,72 +182,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-	  time_buff = HAL_GetTick();
-	  flight_computer.telemetry_frame[1] = (uint8_t)(time_buff >> 24);
-	  flight_computer.telemetry_frame[2] = (uint8_t)(time_buff >> 16);
-	  flight_computer.telemetry_frame[3] = (uint8_t)(time_buff >> 8);
-	  flight_computer.telemetry_frame[4] = (uint8_t)time_buff;
-
-	  //Odczyty z IMU
-	  HAL_I2C_Mem_Read(&hi2c1, 0x53 << 1, 0x32, 1, read_data, 6, 100);
-	  flight_computer.telemetry_frame[17] = read_data[1];
-	  flight_computer.telemetry_frame[18] = read_data[0];
-	  flight_computer.telemetry_frame[19] = read_data[3];
-	  flight_computer.telemetry_frame[20] = read_data[2];
-	  flight_computer.telemetry_frame[21] = read_data[5];
-	  flight_computer.telemetry_frame[22] = read_data[4];
-	  HAL_I2C_Mem_Read(&hi2c1, 0x68 << 1, 0x1D, 1, read_data, 6, 100);
-	  flight_computer.telemetry_frame[23] = read_data[0];
-	  flight_computer.telemetry_frame[24] = read_data[1];
-	  flight_computer.telemetry_frame[25] = read_data[2];
-	  flight_computer.telemetry_frame[26] = read_data[3];
-	  flight_computer.telemetry_frame[27] = read_data[4];
-	  flight_computer.telemetry_frame[28] = read_data[5];
-	  HAL_I2C_Mem_Read(&hi2c1, 0x1E << 1, 0x03, 1, read_data, 6, HAL_MAX_DELAY);
-	  flight_computer.telemetry_frame[11] = read_data[0];
-	  flight_computer.telemetry_frame[12] = read_data[1];
-	  flight_computer.telemetry_frame[13] = read_data[4];
-	  flight_computer.telemetry_frame[14] = read_data[5];
-	  flight_computer.telemetry_frame[15] = read_data[2];
-	  flight_computer.telemetry_frame[16] = read_data[3];
-	  /*HAL_I2C_Mem_Read(&hi2c1, 0x1E << 1, 0x0A, 1, read_data, 3, 100);
-	  flight_computer.telemetry_frame[11] = read_data[0];
-	  flight_computer.telemetry_frame[12] = read_data[1];
-	  flight_computer.telemetry_frame[13] = read_data[2];
-	  flight_computer.telemetry_frame[14] = read_data[0];
-	  flight_computer.telemetry_frame[15] = read_data[1];
-	  flight_computer.telemetry_frame[16] = read_data[2];*/
-
-	  bytesRecv = LoRa_receive(&(flight_computer.LoRa), received_data, 1);
-	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
-	  if(bytesRecv > 0){
-	  	  flight_computer.telemetry_frame[6] = received_data[0];
-	  	  if(received_data[0] == 8)
-	  	  {
-	  		  parachuteCnt = 20;
-	  	  }
-	  }
-
-	  if(parachuteCnt > 0){
-		  parachuteCnt = parachuteCnt -1;
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
-	  }else{
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
-	  }
-
-	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;
-	  LoRa_startReceiving(&(flight_computer.LoRa));
-	  /*time_diff = HAL_GetTick() - time_buff;
-	  flight_computer.telemetry_frame[1] = 0x01;//(uint8_t)(time_buff >> 24);
-	  flight_computer.telemetry_frame[2] = (uint8_t)(time_diff >> 16);
-	  flight_computer.telemetry_frame[3] = (uint8_t)(time_diff >> 8);
-	  flight_computer.telemetry_frame[4] = (uint8_t)time_diff;
-	  isSend = LoRa_transmit(&(flight_computer.LoRa), &(flight_computer.telemetry_frame[0]), 62, 500) + 48;*/
-	  //HAL_UART_Transmit(&huart1,&(flight_computer.telemetry_frame[0]), 62, 100);
-	  //HAL_UART_Transmit(&huart1,&isSend, 1, 100);
-
-	  HAL_Delay(10);
+    FlightComputer_loop(&flight_computer);
 
 	  // Prosty test - przekierowanie na inny UART (jeśli masz podpięty ST-Link)
 	 /*HAL_UART_Transmit(&huart1, gps_raw_data, GPS_BUF_SIZE, 100);
