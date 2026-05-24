@@ -19,3 +19,8 @@ build/
 # Ukryte pliki systemowe
 .DS_Store
 Thumbs.db
+
+.settingg
+.vscode
+.project
+.cproject

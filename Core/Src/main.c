@@ -45,6 +45,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 SPI_HandleTypeDef hspi1;
 
@@ -59,6 +60,13 @@ char gps_line[MINMEA_MAX_SENTENCE_LENGTH];
 uint8_t gps_char;
 uint8_t gps_idx = 0;
 
+uint8_t read_data[128];
+uint8_t received_data[128];
+uint8_t bytesRecv = 0;
+uint8_t parachuteCnt = 0;
+
+#define GPS_BUF_SIZE 128
+uint8_t gps_raw_data[GPS_BUF_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,6 +124,13 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+  	uint8_t isSend = 65;
+  	HAL_Delay(5000);
+  	HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+  	HAL_Delay(1000);
+  	FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1);
+  
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -171,6 +186,19 @@ int main(void)
 			  gps_line[gps_idx++] = gps_char;
 		  }
 	  }
+
+	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);
+	  HAL_Delay(1000);
+//	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 500);
+//	  HAL_Delay(1000);
+//
+//	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1500);
+//	  HAL_Delay(1000);
+//
+//	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2500);
+//	  HAL_Delay(1000);
+    FlightComputer_loop(&flight_computer);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -309,7 +337,6 @@ static void MX_TIM3_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM3_Init 1 */
 
@@ -329,28 +356,15 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
 
 }
 
@@ -430,6 +444,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
@@ -456,12 +473,21 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_Lora_GPIO_Port, CS_Lora_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : CS_Lora_Pin */
-  GPIO_InitStruct.Pin = CS_Lora_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : CS_Lora_Pin led_parachute_Pin */
+  GPIO_InitStruct.Pin = CS_Lora_Pin|led_parachute_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_Lora_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

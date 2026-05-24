@@ -3,7 +3,7 @@
  *
  *  Created on: May 11, 2026
  *      Authors: Julia Brąglewicz
- *      		 Franciszek Ślusarczyk
+ *
  */
 
 #ifndef INC_FLIGHTCOMPUTER_H_
@@ -78,12 +78,23 @@ typedef struct{
 	int32_t start_time;
 	int8_t state;
 	int8_t last_cmd_rx;
+	uint32_t state_change_timestamp;
+	int32_t prev_pressure;
+	int32_t apogee_pressure_window[5];
+	uint8_t apogee_pressure_window_index;
+	uint8_t apogee_pressure_window_count;
+	int32_t apogee_pressure_window_sum;
 
 	// Moduły
 	LoRa LoRa;
 	IMU imu;
 	GPS gps;
 	BaroThermo barothermo;
+	// HAL handles
+	I2C_HandleTypeDef* hi2c;
+
+	// parachute counter (loops remaining to fire output)
+	int parachuteCnt;
 
 	// Telemetria
 	int32_t time;
@@ -114,10 +125,18 @@ typedef struct{
 
 } FlightComputer;
 
+// Sensor access
 void Sensors_read(FlightComputer* flight_computer);
 void Sensors_bypass(FlightComputer* flight_computer);
 
-void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi, GPIO_TypeDef *lora_port, uint16_t lora_pin);
+// Higher-level APIs used by application (main)
+void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state);
+void FlightComputer_handleState(FlightComputer* flight_computer, int8_t state);
+int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer);
+uint8_t* FlightComputer_getTelemetry(FlightComputer* flight_computer);
+
+void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c);
 void FlightComputer_loop(FlightComputer* flight_computer);
 
 void StateMachine_idle(FlightComputer* flight_computer);
