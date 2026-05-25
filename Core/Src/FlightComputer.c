@@ -28,6 +28,9 @@ static PID_HandleTypedef pidZ;
 static double angleX = 0.0;
 static double angleZ = 0.0;
 
+extern uint8_t uart_rx_buffer[18] = {0};
+extern volatile uint8_t new_data_flag = 0;
+
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
 
 // 0 - dane z czujnikow, 1 - dane po uarcie
@@ -95,26 +98,25 @@ void Sensors_read(FlightComputer* flight_computer){
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){
-	uint8_t read_data[18];
-	if(HAL_UART_Receive(flight_computer->huart, read_data, 18, HAL_MAX_DELAY) == HAL_OK){
+	if(new_data_flag){
 
 		// Magnetometer
-		flight_computer->imu.magnetometer.x = (int16_t)(read_data[0] << 8 | read_data[1]);
-		flight_computer->imu.magnetometer.y = (int16_t)(read_data[2] << 8 | read_data[3]);
-		flight_computer->imu.magnetometer.z = (int16_t)(read_data[4] << 8 | read_data[5]);
+		flight_computer->imu.magnetometer.x = (int16_t)(uart_rx_buffer[0] << 8 | uart_rx_buffer[1]);
+		flight_computer->imu.magnetometer.y = (int16_t)(uart_rx_buffer[2] << 8 | uart_rx_buffer[3]);
+		flight_computer->imu.magnetometer.z = (int16_t)(uart_rx_buffer[4] << 8 | uart_rx_buffer[5]);
 
 		// ADXL345 accelerometer
-		flight_computer->imu.accelerometer.x = (int16_t)(read_data[6] << 8 | read_data[7]);
-		flight_computer->imu.accelerometer.y = (int16_t)(read_data[8] << 8 | read_data[9]);
-		flight_computer->imu.accelerometer.z = (int16_t)(read_data[10] << 8 | read_data[11]);
+		flight_computer->imu.accelerometer.x = (int16_t)(uart_rx_buffer[6] << 8 | uart_rx_buffer[7]);
+		flight_computer->imu.accelerometer.y = (int16_t)(uart_rx_buffer[8] << 8 | uart_rx_buffer[9]);
+		flight_computer->imu.accelerometer.z = (int16_t)(uart_rx_buffer[10] << 8 | uart_rx_buffer[11]);
 
 		// MPU/gyro
-		flight_computer->imu.gyroscope.x = (int16_t)(read_data[12] << 8 | read_data[13]);
-		flight_computer->imu.gyroscope.y = (int16_t)(read_data[14] << 8 | read_data[15]);
-		flight_computer->imu.gyroscope.z = (int16_t)(read_data[16] << 8 | read_data[17]);
+		flight_computer->imu.gyroscope.x = (int16_t)(uart_rx_buffer[12] << 8 | uart_rx_buffer[13]);
+		flight_computer->imu.gyroscope.y = (int16_t)(uart_rx_buffer[14] << 8 | uart_rx_buffer[15]);
+		flight_computer->imu.gyroscope.z = (int16_t)(uart_rx_buffer[16] << 8 | uart_rx_buffer[17]);
 
 		for(int i=0; i<18; ++i){
-			flight_computer->telemetry_frame[i + 11] = read_data[i];
+			flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
 		}
 	}
 }
@@ -124,11 +126,8 @@ void LoRa_send_telemetry(FlightComputer* flight_computer){
 }
 
 void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
-<<<<<<< HEAD
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc){
-=======
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, UART_HandleTypeDef* huart){
->>>>>>> 202b5bd73ebf559cab7dd8ec2834a7331e1948f7
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart){
+
 
 	// LORA
 	flight_computer->LoRa = newLoRa();
@@ -317,7 +316,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
 
 	// Read sensors and update telemetry bytes
-	if(MODE == 0){
+	if(new_data_flag == 0){
 		Sensors_read(flight_computer);
 	}else{
 		Sensors_bypass(flight_computer);

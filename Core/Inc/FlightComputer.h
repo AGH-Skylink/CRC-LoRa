@@ -15,6 +15,9 @@
 #include "LoRa.h"
 #include "bmp280.h"
 
+extern uint8_t uart_rx_buffer[18];
+extern volatile uint8_t new_data_flag;
+
 // Magnetometr, część IMU
 typedef struct{
 
@@ -92,11 +95,8 @@ typedef struct{
 	BaroThermo barothermo;
 	// HAL handles
 	I2C_HandleTypeDef* hi2c;
-<<<<<<< HEAD
 	ADC_HandleTypeDef* hadc;
-=======
 	UART_HandleTypeDef* huart;
->>>>>>> 202b5bd73ebf559cab7dd8ec2834a7331e1948f7
 
 	// parachute counter (loops remaining to fire output)
 	int parachuteCnt;
@@ -141,11 +141,7 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer);
 uint8_t* FlightComputer_getTelemetry(FlightComputer* flight_computer);
 
 void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
-<<<<<<< HEAD
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc);
-=======
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, UART_HandleTypeDef* huart);
->>>>>>> 202b5bd73ebf559cab7dd8ec2834a7331e1948f7
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart);
 void FlightComputer_loop(FlightComputer* flight_computer);
 
 void StateMachine_idle(FlightComputer* flight_computer);
