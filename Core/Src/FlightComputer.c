@@ -100,7 +100,7 @@ void LoRa_send_telemetry(FlightComputer* flight_computer){
 }
 
 void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c){
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc){
 
 	// LORA
 	flight_computer->LoRa = newLoRa();
@@ -160,6 +160,9 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     // store hi2c handle for later sensor reads
     flight_computer->hi2c = hi2c;
     flight_computer->parachuteCnt = 0;
+
+    //ADC
+    flight_computer->hadc = hadc;
 
 	// Initialize servos and PID controllers (conservative defaults)
 //	Servos_Init();
@@ -286,6 +289,13 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	// Read sensors and update telemetry bytes
 	Sensors_read(flight_computer);
+
+	// odczyt napiecia
+	uint16_t adcValue;
+	adcValue = (uint16_t)HAL_ADC_GetValue(flight_computer->hadc);
+	HAL_ADC_Start(flight_computer->hadc);
+	flight_computer->telemetry_frame[54] = (uint8_t)(adcValue >> 8);
+	flight_computer->telemetry_frame[55] = (uint8_t)adcValue;
 
 	// Handle LoRa receive (commands)
 	uint8_t received_data[1];
