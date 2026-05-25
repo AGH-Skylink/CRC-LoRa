@@ -173,7 +173,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	flight_computer->apogee_pressure_window_index = 0;
 	flight_computer->apogee_pressure_window_count = 0;
 	flight_computer->apogee_pressure_window_sum = 0;
-	for (int i = 0; i < APOGEE_PRESSURE_WINDOW_SIZE; ++i) {
+	for (int i = 0; i < APOGEE_PRESSURE_WINDOW_SIZE; i = i+1) {
 		flight_computer->apogee_pressure_window[i] = 0;
 	}
 }
@@ -349,5 +349,6 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	LoRa_transmit(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
 	LoRa_startReceiving(&(flight_computer->LoRa));
 
-	HAL_Delay(1000);
+	HAL_Delay(10);
+
 }

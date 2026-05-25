@@ -60,6 +60,9 @@ char gps_line[MINMEA_MAX_SENTENCE_LENGTH];
 uint8_t gps_char;
 uint8_t gps_idx = 0;
 
+uint32_t time_buff;
+uint32_t time_diff;
+
 uint8_t read_data[128];
 uint8_t received_data[128];
 uint8_t bytesRecv = 0;
@@ -150,6 +153,7 @@ int main(void)
 //
 //	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2500);
 //	  HAL_Delay(1000);
+
     FlightComputer_loop(&flight_computer);
 
     /* USER CODE END WHILE */
