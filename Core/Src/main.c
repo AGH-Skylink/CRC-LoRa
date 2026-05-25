@@ -153,6 +153,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+//  uint8_t isOK = 0;
   while (1)
   {
 
@@ -168,6 +169,14 @@ int main(void)
 //	  HAL_Delay(1000);
 
     FlightComputer_loop(&flight_computer);
+
+//	  for(uint16_t i=1; i<128; i++) {
+//	      if(HAL_I2C_IsDeviceReady(&hi2c1, (i<<1), 1, 10) == HAL_OK) {
+//	          // Znaleziono urządzenie pod adresem 'i'
+//	          // Zobacz w debugerze, jakie wartości przyjmie zmienna 'i'
+//	          isOK=1;
+//	      }
+//	  }
 //	  GPS_Task();
 
     /* USER CODE END WHILE */

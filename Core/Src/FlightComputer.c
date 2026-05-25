@@ -95,6 +95,7 @@ void Sensors_read(FlightComputer* flight_computer){
 		flight_computer->telemetry_frame[15] = read_data[2];
 		flight_computer->telemetry_frame[16] = read_data[3];
 	}
+
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){
