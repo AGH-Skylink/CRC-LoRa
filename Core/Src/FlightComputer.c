@@ -99,27 +99,30 @@ void Sensors_read(FlightComputer* flight_computer){
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){
-	if(new_data_flag){
-
-		// Magnetometer
-		flight_computer->imu.magnetometer.x = (int16_t)(uart_rx_buffer[0] << 8 | uart_rx_buffer[1]);
-		flight_computer->imu.magnetometer.y = (int16_t)(uart_rx_buffer[2] << 8 | uart_rx_buffer[3]);
-		flight_computer->imu.magnetometer.z = (int16_t)(uart_rx_buffer[4] << 8 | uart_rx_buffer[5]);
-
-		// ADXL345 accelerometer
-		flight_computer->imu.accelerometer.x = (int16_t)(uart_rx_buffer[6] << 8 | uart_rx_buffer[7]);
-		flight_computer->imu.accelerometer.y = (int16_t)(uart_rx_buffer[8] << 8 | uart_rx_buffer[9]);
-		flight_computer->imu.accelerometer.z = (int16_t)(uart_rx_buffer[10] << 8 | uart_rx_buffer[11]);
-
-		// MPU/gyro
-		flight_computer->imu.gyroscope.x = (int16_t)(uart_rx_buffer[12] << 8 | uart_rx_buffer[13]);
-		flight_computer->imu.gyroscope.y = (int16_t)(uart_rx_buffer[14] << 8 | uart_rx_buffer[15]);
-		flight_computer->imu.gyroscope.z = (int16_t)(uart_rx_buffer[16] << 8 | uart_rx_buffer[17]);
-
-		for(int i=0; i<18; ++i){
-			flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
-		}
+	while(new_data_flag == 0){
+		HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
+		HAL_Delay(500);
 	}
+
+	// Magnetometer
+	flight_computer->imu.magnetometer.x = (int16_t)(uart_rx_buffer[0] << 8 | uart_rx_buffer[1]);
+	flight_computer->imu.magnetometer.y = (int16_t)(uart_rx_buffer[2] << 8 | uart_rx_buffer[3]);
+	flight_computer->imu.magnetometer.z = (int16_t)(uart_rx_buffer[4] << 8 | uart_rx_buffer[5]);
+
+	// ADXL345 accelerometer
+	flight_computer->imu.accelerometer.x = (int16_t)(uart_rx_buffer[6] << 8 | uart_rx_buffer[7]);
+	flight_computer->imu.accelerometer.y = (int16_t)(uart_rx_buffer[8] << 8 | uart_rx_buffer[9]);
+	flight_computer->imu.accelerometer.z = (int16_t)(uart_rx_buffer[10] << 8 | uart_rx_buffer[11]);
+
+	// MPU/gyro
+	flight_computer->imu.gyroscope.x = (int16_t)(uart_rx_buffer[12] << 8 | uart_rx_buffer[13]);
+	flight_computer->imu.gyroscope.y = (int16_t)(uart_rx_buffer[14] << 8 | uart_rx_buffer[15]);
+	flight_computer->imu.gyroscope.z = (int16_t)(uart_rx_buffer[16] << 8 | uart_rx_buffer[17]);
+
+	for(int i=0; i<18; ++i){
+		flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
+	}
+	new_data_flag = 0;
 }
 
 void LoRa_send_telemetry(FlightComputer* flight_computer){
@@ -155,25 +158,11 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	flight_computer->telemetry_frame[60] = 0x0D; // \r
 	flight_computer->telemetry_frame[61] = 0x00; // \0
 
-	/*flight_computer->telemetry_frame[1] = 0x31; // $
-	flight_computer->telemetry_frame[2] = 0x31; // \n
-	flight_computer->telemetry_frame[3] = 0x31; // \r
-	flight_computer->telemetry_frame[4] = 0x31; // \0*/
-
 	/*bmp280_init_default_params(&(bmp280.params);
 	bmp280.addr = BMP280_I2C_ADDRESS_0;
 	bmp280.i2c = &hi2c1;*/
 
 	// Inicjalizacja IMU
-
-	/*uint8_t v;
-	v = 0x70;
-	HAL_I2C_Mem_Write(hi2c, 0x1E<<1, 0x00, 1, &v, 1, 100);
-	v = 0x20;
-	HAL_I2C_Mem_Write(hi2c, 0x1E<<1, 0x01, 1, &v, 1, 100);
-	v = 0x00;
-	HAL_I2C_Mem_Write(hi2c, 0x1E<<1, 0x02, 1, &v, 1, 100);*/
-
 	uint8_t settings = 0x08;
 	HAL_I2C_Mem_Write(hi2c, 0x53 << 1, 0x2D, 1, &settings, 1, 100);
 	settings = 0x00;
@@ -185,13 +174,14 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	settings = 0x00;
 	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x01, 1, &settings, 1, 100);
 
-    // store hi2c handle for later sensor reads
+    // store hi2c and huart handles for later sensor reads
     flight_computer->hi2c = hi2c;
     flight_computer->huart = huart;
     flight_computer->parachuteCnt = 0;
 
     //ADC
     flight_computer->hadc = hadc;
+    HAL_ADC_Start(flight_computer->hadc);
 
 	// Initialize servos and PID controllers (conservative defaults)
 //	Servos_Init();
@@ -317,7 +307,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
 
 	// Read sensors and update telemetry bytes
-	if(new_data_flag == 0){
+	if(MODE == 0){
 		Sensors_read(flight_computer);
 	}else{
 		Sensors_bypass(flight_computer);
@@ -391,6 +381,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	// Transmit telemetry and restart RX
 	LoRa_transmit(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
 	LoRa_startReceiving(&(flight_computer->LoRa));
+	HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 
 	HAL_Delay(10);
 

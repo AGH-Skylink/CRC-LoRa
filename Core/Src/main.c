@@ -144,7 +144,6 @@ int main(void)
   HAL_Delay(1000);
   FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1);
   HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
-  HAL_ADC_Start(&hadc1);
   HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 18);
   
 //  GPS_Init(&huart2, &huart1);
