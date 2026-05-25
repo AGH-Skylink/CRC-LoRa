@@ -67,6 +67,8 @@ uint8_t parachuteCnt = 0;
 
 #define GPS_BUF_SIZE 128
 uint8_t gps_raw_data[GPS_BUF_SIZE];
+
+FlightComputer flight_computer;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -137,58 +139,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (HAL_UART_Receive(&huart2, &gps_char, 1, 100) == HAL_OK)
-	  {
-		  if (gps_char == '\n' || gps_idx >= MINMEA_MAX_SENTENCE_LENGTH - 1)
-		  {
-			  gps_line[gps_idx] = '\0';
-			  gps_idx = 0;
 
-			  // parsuj linię
-			  switch (minmea_sentence_id(gps_line, false))
-			  {
-			  	  case MINMEA_SENTENCE_GGA: {
-			  		  struct minmea_sentence_gga frame;
-			  		  if (minmea_parse_gga(&frame, gps_line)) {
-			  			  char buf[128];
-			  			  snprintf(buf, sizeof(buf),
-			  					  "FIX:%d SATS:%d LAT:%f LON:%f ALT:%fm\r\n",
-								  frame.fix_quality,
-								  frame.satellites_tracked,
-								  minmea_tocoord(&frame.latitude),
-								  minmea_tocoord(&frame.longitude),
-								  minmea_tofloat(&frame.altitude));
-			  			  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
-			  		  }
-			  	  } break;
-
-			  	  	  case MINMEA_SENTENCE_RMC: {
-			  	  		  struct minmea_sentence_rmc frame;
-			  	  		  if (minmea_parse_rmc(&frame, gps_line)) {
-			  	  			  char buf[128];
-			  	  			  snprintf(buf, sizeof(buf),
-			  	  					  "SPD:%f kt HDG:%f\r\n",
-									  minmea_tofloat(&frame.speed),
-									  minmea_tofloat(&frame.course));
-			  	  			  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
-			  	  		  }
-			  	  	  } break;
-
-			  	  	  default: {
-			  	  		  char buf[128];
-			  	  		  snprintf(buf, sizeof(buf), "RAW: %s\r\n", gps_line);
-			  	  		  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
-			  	  	  } break;
-			  }
-		  }
-		  else
-		  {
-			  gps_line[gps_idx++] = gps_char;
-		  }
-	  }
-
-	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);
-	  HAL_Delay(1000);
+//	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);
+//	  HAL_Delay(1000);
 //	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 500);
 //	  HAL_Delay(1000);
 //

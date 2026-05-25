@@ -8,8 +8,8 @@
 
 #include "FlightComputer.h"
 #include "pid.h"
-#include "servos.h"
-#include "power.h"
+//#include "servos.h"
+//#include "power.h"
 
 #define bmp280 flight_computer->barothermo.handle
 
@@ -162,7 +162,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     flight_computer->parachuteCnt = 0;
 
 	// Initialize servos and PID controllers (conservative defaults)
-	Servos_Init();
+//	Servos_Init();
 	PID_Init(&pidX, &angleX);
 	PID_Init(&pidZ, &angleZ);
 
@@ -192,13 +192,13 @@ void StateMachine_launch(FlightComputer* flight_computer){
 
 	double cx = PID_Compute(&pidX);
 	double cz = PID_Compute(&pidZ);
-	Servos_SetAngleX(SERVO_X_HOME - (cx * GEAR_RATIO));
-	Servos_SetAngleZ(SERVO_Z_HOME + (cz * GEAR_RATIO));
+//	Servos_SetAngleX(SERVO_X_HOME - (cx * GEAR_RATIO));
+//	Servos_SetAngleZ(SERVO_Z_HOME + (cz * GEAR_RATIO));
 }
 
 void StateMachine_ascent(FlightComputer* flight_computer){
 	// Unpowered coast: disable servos to save power
-	Servos_Detach();
+//	Servos_Detach();
 	(void)flight_computer;
 }
 
@@ -214,7 +214,7 @@ void StateMachine_descent(FlightComputer* flight_computer){
 
 void StateMachine_landing(FlightComputer* flight_computer){
 	// Finalize: stop recording/telemetry if implemented and power down
-	Servos_Detach();
+//	Servos_Detach();
 	// Optionally power down the system
 	(void)flight_computer; // leave power decision to main
 }
@@ -337,10 +337,10 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[6] = (uint8_t)flight_computer->last_cmd_rx;
 
 	// battery placeholder
-	int16_t batt = (int16_t)(read_battery_voltage_adc() * 100.0f);
-	if (batt < 0) batt = 0;
-	flight_computer->telemetry_frame[54] = (uint8_t)((batt >> 8) & 0xFF);
-	flight_computer->telemetry_frame[55] = (uint8_t)(batt & 0xFF);
+//	int16_t batt = (int16_t)(read_battery_voltage_adc() * 100.0f);
+//	if (batt < 0) batt = 0;
+//	flight_computer->telemetry_frame[54] = (uint8_t)((batt >> 8) & 0xFF);
+//	flight_computer->telemetry_frame[55] = (uint8_t)(batt & 0xFF);
 
 	// RSSI
 	flight_computer->telemetry_frame[56] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));

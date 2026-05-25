@@ -9,9 +9,9 @@
 extern double KP = 1.0;
 extern double KI = 0.0;
 extern double KD = 0.0;
-extern double PID_SETPOINT;
-extern double PID_DEG_MAX;
-extern double PID_DEG_MIN;
+extern double PID_SETPOINT = 0;
+extern double PID_DEG_MAX = 0;
+extern double PID_DEG_MIN = 0;
 
 void PID_Init(PID_HandleTypedef *h, double *angle_variable) {
   h->first_call = 1;
