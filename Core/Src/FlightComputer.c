@@ -30,6 +30,9 @@ static double angleZ = 0.0;
 
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
 
+// 0 - dane z czujnikow, 1 - dane po uarcie
+#define MODE 1
+
 static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, int32_t pressure) {
 	uint8_t index = flight_computer->apogee_pressure_window_index;
 
@@ -92,7 +95,28 @@ void Sensors_read(FlightComputer* flight_computer){
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){
+	uint8_t read_data[18];
+	if(HAL_UART_Receive(flight_computer->huart, read_data, 18, HAL_MAX_DELAY) == HAL_OK){
 
+		// Magnetometer
+		flight_computer->imu.magnetometer.x = (int16_t)(read_data[0] << 8 | read_data[1]);
+		flight_computer->imu.magnetometer.y = (int16_t)(read_data[2] << 8 | read_data[3]);
+		flight_computer->imu.magnetometer.z = (int16_t)(read_data[4] << 8 | read_data[5]);
+
+		// ADXL345 accelerometer
+		flight_computer->imu.accelerometer.x = (int16_t)(read_data[6] << 8 | read_data[7]);
+		flight_computer->imu.accelerometer.y = (int16_t)(read_data[8] << 8 | read_data[9]);
+		flight_computer->imu.accelerometer.z = (int16_t)(read_data[10] << 8 | read_data[11]);
+
+		// MPU/gyro
+		flight_computer->imu.gyroscope.x = (int16_t)(read_data[12] << 8 | read_data[13]);
+		flight_computer->imu.gyroscope.y = (int16_t)(read_data[14] << 8 | read_data[15]);
+		flight_computer->imu.gyroscope.z = (int16_t)(read_data[16] << 8 | read_data[17]);
+
+		for(int i=0; i<18; ++i){
+			flight_computer->telemetry_frame[i + 11] = read_data[i];
+		}
+	}
 }
 
 void LoRa_send_telemetry(FlightComputer* flight_computer){
@@ -100,7 +124,7 @@ void LoRa_send_telemetry(FlightComputer* flight_computer){
 }
 
 void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c){
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, UART_HandleTypeDef* huart){
 
 	// LORA
 	flight_computer->LoRa = newLoRa();
@@ -159,6 +183,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 
     // store hi2c handle for later sensor reads
     flight_computer->hi2c = hi2c;
+    flight_computer->huart = huart;
     flight_computer->parachuteCnt = 0;
 
 	// Initialize servos and PID controllers (conservative defaults)
@@ -285,7 +310,11 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
 
 	// Read sensors and update telemetry bytes
-	Sensors_read(flight_computer);
+	if(MODE == 0){
+		Sensors_read(flight_computer);
+	}else{
+		Sensors_bypass(flight_computer);
+	}
 
 	// Handle LoRa receive (commands)
 	uint8_t received_data[1];

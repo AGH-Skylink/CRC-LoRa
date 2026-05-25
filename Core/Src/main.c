@@ -134,7 +134,7 @@ int main(void)
   	HAL_Delay(5000);
   	HAL_UART_Transmit(&huart1, &isSend, 1, 100);
   	HAL_Delay(1000);
-  	FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1);
+  	FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &huart1);
   
   /* USER CODE END 2 */
 
