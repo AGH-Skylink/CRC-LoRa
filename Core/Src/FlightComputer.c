@@ -13,6 +13,9 @@
 
 #define bmp280 flight_computer->barothermo.handle
 
+#define ADXL345_SCALE_FACTOR  0.0039f      // 3.9 mg / LSB
+#define GRAVITY_EARTH         9.80665f     // m/s^2
+
 // Local state enum (maps into flight_computer->state)
 typedef enum {
 	STATE_WAITING = 0,
@@ -34,7 +37,7 @@ extern volatile uint8_t new_data_flag = 0;
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
 
 // 0 - dane z czujnikow, 1 - dane po uarcie
-#define MODE 1
+#define MODE 0
 
 static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, int32_t pressure) {
 	uint8_t index = flight_computer->apogee_pressure_window_index;
@@ -52,22 +55,57 @@ static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight
 	return flight_computer->apogee_pressure_window_sum / flight_computer->apogee_pressure_window_count;
 }
 
+void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
+    // Przeliczenie bezpośrednio na m/s^2
+    flight_computer->imu.acc_x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.acc_y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.acc_z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+
+//    // 2. Rzutowanie wskaźnika float na wskaźnik bajtów (uint8_t*), żeby dobrać się do pamięci
+//        uint8_t* p_x = (uint8_t*)&flight_computer->imu.acc_x_scaled;
+//        uint8_t* p_y = (uint8_t*)&flight_computer->imu.acc_y_scaled;
+//        uint8_t* p_z = (uint8_t*)&flight_computer->imu.acc_z_scaled;
+//
+//        // Oś X zajmie teraz pozycje: 17, 18, 19, 20 (4 bajty!)
+//        flight_computer->telemetry_frame[17] = p_x[0];
+//        flight_computer->telemetry_frame[18] = p_x[1];
+//        flight_computer->telemetry_frame[19] = p_x[2];
+//        flight_computer->telemetry_frame[20] = p_x[3];
+//
+//        // Oś Y zajmie pozycje: 21, 22, 23, 24 (Wchodzi na teren żyroskopu!)
+//        flight_computer->telemetry_frame[21] = p_y[0];
+//        flight_computer->telemetry_frame[22] = p_y[1];
+//        flight_computer->telemetry_frame[23] = p_y[2];
+//        flight_computer->telemetry_frame[24] = p_y[3];
+//
+//        // Oś Z zajmie pozycje: 25, 26, 27, 28
+//        flight_computer->telemetry_frame[25] = p_z[0];
+//        flight_computer->telemetry_frame[26] = p_z[1];
+//        flight_computer->telemetry_frame[27] = p_z[2];
+//        flight_computer->telemetry_frame[28] = p_z[3];
+}
+
 
 void Sensors_read(FlightComputer* flight_computer){
 	uint8_t read_data[6];
-	// ADXL345 accelerometer @ 0x53, reg 0x32
-	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
-		flight_computer->imu.accelerometer.x = (int16_t)(read_data[1] << 8 | read_data[0]);
-		flight_computer->imu.accelerometer.y = (int16_t)(read_data[3] << 8 | read_data[2]);
-		flight_computer->imu.accelerometer.z = (int16_t)(read_data[5] << 8 | read_data[4]);
-		// copy to telemetry frame positions 17-22 (legacy ordering)
-		flight_computer->telemetry_frame[17] = read_data[1];
-		flight_computer->telemetry_frame[18] = read_data[0];
-		flight_computer->telemetry_frame[19] = read_data[3];
-		flight_computer->telemetry_frame[20] = read_data[2];
-		flight_computer->telemetry_frame[21] = read_data[5];
-		flight_computer->telemetry_frame[22] = read_data[4];
+	uint8_t config_to_write = 0x0B;
+	if (HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100) == HAL_OK) {
+		// ADXL345 accelerometer @ 0x53, reg 0x32
+		if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
+			flight_computer->imu.accelerometer.x = (int16_t)(read_data[1] << 8 | read_data[0]);
+			flight_computer->imu.accelerometer.y = (int16_t)(read_data[3] << 8 | read_data[2]);
+			flight_computer->imu.accelerometer.z = (int16_t)(read_data[5] << 8 | read_data[4]);
+			// copy to telemetry frame positions 17-22 (legacy ordering)
+			flight_computer->telemetry_frame[17] = read_data[1];
+			flight_computer->telemetry_frame[18] = read_data[0];
+			flight_computer->telemetry_frame[19] = read_data[3];
+			flight_computer->telemetry_frame[20] = read_data[2];
+			flight_computer->telemetry_frame[21] = read_data[5];
+			flight_computer->telemetry_frame[22] = read_data[4];
+		}
 	}
+
+	FlightComputer_scaleAccelerometer(flight_computer);
 
 	// MPU/gyro @ 0x68, reg 0x1D (read 6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x68 << 1, 0x1D, 1, read_data, 6, 100) == HAL_OK) {
@@ -95,7 +133,6 @@ void Sensors_read(FlightComputer* flight_computer){
 		flight_computer->telemetry_frame[15] = read_data[2];
 		flight_computer->telemetry_frame[16] = read_data[3];
 	}
-
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){
