@@ -15,6 +15,7 @@
 
 #define ADXL345_SCALE_FACTOR  0.0039f      // 3.9 mg / LSB
 #define GRAVITY_EARTH         9.80665f     // m/s^2
+#define MPU_GYRO_SCALE_2000  16.4f
 
 // Local state enum (maps into flight_computer->state)
 typedef enum {
@@ -85,9 +86,17 @@ void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
 //        flight_computer->telemetry_frame[28] = p_z[3];
 }
 
+void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
+    // Przeliczenie surowych wartości na stopnie na sekundę (°/s)
+    flight_computer->imu.gyro_x_scaled = (float)flight_computer->imu.gyroscope.x / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyro_y_scaled = (float)flight_computer->imu.gyroscope.y / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyro_z_scaled = (float)flight_computer->imu.gyroscope.z / MPU_GYRO_SCALE_2000;
+}
+
 
 void Sensors_read(FlightComputer* flight_computer){
 	uint8_t read_data[6];
+
 	uint8_t config_to_write = 0x0B;
 	if (HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100) == HAL_OK) {
 		// ADXL345 accelerometer @ 0x53, reg 0x32
@@ -107,18 +116,23 @@ void Sensors_read(FlightComputer* flight_computer){
 
 	FlightComputer_scaleAccelerometer(flight_computer);
 
-	// MPU/gyro @ 0x68, reg 0x1D (read 6 bytes)
-	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x68 << 1, 0x1D, 1, read_data, 6, 100) == HAL_OK) {
-		flight_computer->imu.gyroscope.x = (int16_t)(read_data[0] << 8 | read_data[1]);
-		flight_computer->imu.gyroscope.y = (int16_t)(read_data[2] << 8 | read_data[3]);
-		flight_computer->imu.gyroscope.z = (int16_t)(read_data[4] << 8 | read_data[5]);
-		flight_computer->telemetry_frame[23] = read_data[0];
-		flight_computer->telemetry_frame[24] = read_data[1];
-		flight_computer->telemetry_frame[25] = read_data[2];
-		flight_computer->telemetry_frame[26] = read_data[3];
-		flight_computer->telemetry_frame[27] = read_data[4];
-		flight_computer->telemetry_frame[28] = read_data[5];
+	uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
+	if (HAL_I2C_Mem_Write(flight_computer->hi2c, 0x68 << 1, 0x1B, 1, &gyro_config, 1, 100) == HAL_OK) {
+		// MPU/gyro @ 0x68, reg 0x1D (read 6 bytes)
+		if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x68 << 1, 0x1D, 1, read_data, 6, 100) == HAL_OK) {
+			flight_computer->imu.gyroscope.x = (int16_t)(read_data[0] << 8 | read_data[1]);
+			flight_computer->imu.gyroscope.y = (int16_t)(read_data[2] << 8 | read_data[3]);
+			flight_computer->imu.gyroscope.z = (int16_t)(read_data[4] << 8 | read_data[5]);
+			flight_computer->telemetry_frame[23] = read_data[0];
+			flight_computer->telemetry_frame[24] = read_data[1];
+			flight_computer->telemetry_frame[25] = read_data[2];
+			flight_computer->telemetry_frame[26] = read_data[3];
+			flight_computer->telemetry_frame[27] = read_data[4];
+			flight_computer->telemetry_frame[28] = read_data[5];
+		}
 	}
+
+	FlightComputer_scaleGyroscope(flight_computer);
 
 	// Magnetometer @ 0x1E reg 0x03 (6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x1E << 1, 0x03, 1, read_data, 6, 100) == HAL_OK) {
