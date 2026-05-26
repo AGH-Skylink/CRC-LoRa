@@ -66,46 +66,23 @@ static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight
 
 void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
     // Przeliczenie bezpośrednio na m/s^2
-    flight_computer->imu.acc_x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
-    flight_computer->imu.acc_y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
-    flight_computer->imu.acc_z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
-
-//    // 2. Rzutowanie wskaźnika float na wskaźnik bajtów (uint8_t*), żeby dobrać się do pamięci
-//        uint8_t* p_x = (uint8_t*)&flight_computer->imu.acc_x_scaled;
-//        uint8_t* p_y = (uint8_t*)&flight_computer->imu.acc_y_scaled;
-//        uint8_t* p_z = (uint8_t*)&flight_computer->imu.acc_z_scaled;
-//
-//        // Oś X zajmie teraz pozycje: 17, 18, 19, 20 (4 bajty!)
-//        flight_computer->telemetry_frame[17] = p_x[0];
-//        flight_computer->telemetry_frame[18] = p_x[1];
-//        flight_computer->telemetry_frame[19] = p_x[2];
-//        flight_computer->telemetry_frame[20] = p_x[3];
-//
-//        // Oś Y zajmie pozycje: 21, 22, 23, 24 (Wchodzi na teren żyroskopu!)
-//        flight_computer->telemetry_frame[21] = p_y[0];
-//        flight_computer->telemetry_frame[22] = p_y[1];
-//        flight_computer->telemetry_frame[23] = p_y[2];
-//        flight_computer->telemetry_frame[24] = p_y[3];
-//
-//        // Oś Z zajmie pozycje: 25, 26, 27, 28
-//        flight_computer->telemetry_frame[25] = p_z[0];
-//        flight_computer->telemetry_frame[26] = p_z[1];
-//        flight_computer->telemetry_frame[27] = p_z[2];
-//        flight_computer->telemetry_frame[28] = p_z[3];
+    flight_computer->imu.accelerometer.x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.accelerometer.y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.accelerometer.z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
 }
 
 void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
     // Przeliczenie surowych wartości na stopnie na sekundę (°/s)
-    flight_computer->imu.gyro_x_scaled = (float)flight_computer->imu.gyroscope.x / MPU_GYRO_SCALE_2000;
-    flight_computer->imu.gyro_y_scaled = (float)flight_computer->imu.gyroscope.y / MPU_GYRO_SCALE_2000;
-    flight_computer->imu.gyro_z_scaled = (float)flight_computer->imu.gyroscope.z / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyroscope.x_scaled = (float)flight_computer->imu.gyroscope.x / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyroscope.y_scaled = (float)flight_computer->imu.gyroscope.y / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyroscope.z_scaled = (float)flight_computer->imu.gyroscope.z / MPU_GYRO_SCALE_2000;
 }
 
 void FlightComputer_scaleMagnetometer(FlightComputer* flight_computer) {
     // Przeliczenie na Gausy, a następnie na mikrotesle (uT)
-    flight_computer->imu.mag_x_scaled = ((float)flight_computer->imu.magnetometer.x / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
-    flight_computer->imu.mag_y_scaled = ((float)flight_computer->imu.magnetometer.y / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
-    flight_computer->imu.mag_z_scaled = ((float)flight_computer->imu.magnetometer.z / HMC5883L_SCALE_Z) * GAUSS_TO_UT;
+    flight_computer->imu.magnetometer.x_scaled = ((float)flight_computer->imu.magnetometer.x / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
+    flight_computer->imu.magnetometer.y_scaled  = ((float)flight_computer->imu.magnetometer.y / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
+    flight_computer->imu.magnetometer.z_scaled  = ((float)flight_computer->imu.magnetometer.z / HMC5883L_SCALE_Z) * GAUSS_TO_UT;
 }
 
 
@@ -155,8 +132,8 @@ void Sensors_read(FlightComputer* flight_computer){
 	// Magnetometer @ 0x1E reg 0x03 (6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x1E << 1, 0x03, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.magnetometer.x = (int16_t)(read_data[0] << 8 | read_data[1]);
-		flight_computer->imu.magnetometer.y = (int16_t)(read_data[2] << 8 | read_data[3]);
-		flight_computer->imu.magnetometer.z = (int16_t)(read_data[4] << 8 | read_data[5]);
+		flight_computer->imu.magnetometer.y = (int16_t)(read_data[4] << 8 | read_data[5]);
+		flight_computer->imu.magnetometer.z = (int16_t)(read_data[2] << 8 | read_data[3]);
 		// legacy telemetry ordering
 		flight_computer->telemetry_frame[11] = read_data[0];
 		flight_computer->telemetry_frame[12] = read_data[1];

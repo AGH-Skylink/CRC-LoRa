@@ -25,6 +25,10 @@ typedef struct{
 	int16_t y;
 	int16_t z;
 
+	float x_scaled;
+	float y_scaled;
+	float z_scaled;
+
 } Magnetometer;
 
 // Akcelerometr, część IMU
@@ -34,6 +38,10 @@ typedef struct{
 	int16_t y;
 	int16_t z;
 
+	float x_scaled;
+	float y_scaled;
+	float z_scaled;
+
 } Accelerometer;
 
 // Żyroskop, część IMU
@@ -42,6 +50,10 @@ typedef struct{
 	int16_t x;
 	int16_t y;
 	int16_t z;
+
+	float x_scaled;
+	float y_scaled;
+	float z_scaled;
 
 } Gyroscope;
 
@@ -60,20 +72,6 @@ typedef struct{
 	Magnetometer magnetometer;
 	Accelerometer accelerometer;
 	Gyroscope gyroscope;
-	int16_t pressure;
-	int16_t temperature;
-
-	float acc_x_scaled;
-	float acc_y_scaled;
-	float acc_z_scaled;
-
-	float gyro_x_scaled;
-	float gyro_y_scaled;
-	float gyro_z_scaled;
-
-	float mag_x_scaled;
-	float mag_y_scaled;
-	float mag_z_scaled;
 
 } IMU;
 
