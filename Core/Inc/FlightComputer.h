@@ -68,9 +68,22 @@ typedef struct{
 // BMP280 (ciśnienie + temperatura + wilgotność)
 typedef struct{
 
-	BMP280_HandleTypedef handle;
 	float pressure;
 	float temperature;
+
+	uint16_t T1;
+	int16_t  T2;
+	int16_t  T3;
+
+	uint16_t P1;
+	int16_t  P2;
+	int16_t  P3;
+	int16_t  P4;
+	int16_t  P5;
+	int16_t  P6;
+	int16_t  P7;
+	int16_t  P8;
+	int16_t  P9;
 
 } BaroThermo;
 
@@ -113,13 +126,13 @@ typedef struct{
 		1-4 - timestamp
 		5 - stan
 		6 - ostatnia komenda
-		7-8 - ciśnienie
+		7-8 - wysokosc [decymetry]
 		9-10 - temperatura
 		11-16 - magnetometr x,y,z
 		17-22 - akcelerometr x,y,z
 		23-28 - żyroskop x,y,z
-		29-30 - ciśnienie imu
-		31-32 - temperatura imu
+		29-30 - ciśnienie imu (TO DELETE)
+		31-32 - temperatura imu (TO DELETE)
 		33-52 - GPS (TBD)
 		53 - GPIO state
 		54-55 - napięcie na baterii
@@ -133,6 +146,10 @@ typedef struct{
 // Sensor access
 void Sensors_read(FlightComputer* flight_computer);
 void Sensors_bypass(FlightComputer* flight_computer);
+
+// Sensor conversions
+void BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine);
+int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t temperature_raw);
 
 // Higher-level APIs used by application (main)
 void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state);
