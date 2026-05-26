@@ -71,6 +71,10 @@ typedef struct{
 	float gyro_y_scaled;
 	float gyro_z_scaled;
 
+	float mag_x_scaled;
+	float mag_y_scaled;
+	float mag_z_scaled;
+
 } IMU;
 
 // BMP280 (ciśnienie + temperatura + wilgotność)
