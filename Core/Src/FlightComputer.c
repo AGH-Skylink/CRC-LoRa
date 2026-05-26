@@ -12,6 +12,17 @@
 //#include "servos.h"
 //#include "power.h"
 
+#define bmp280 flight_computer->barothermo.handle
+
+#define ADXL345_SCALE_FACTOR  0.0039f      // 3.9 mg / LSB
+#define GRAVITY_EARTH         9.80665f     // m/s^2
+#define MPU_GYRO_SCALE_2000  16.4f
+
+// Współczynniki dla domyślnego zakresu +/- 1.3 Gauss
+#define HMC5883L_SCALE_XY   1090.0f
+#define HMC5883L_SCALE_Z    980.0f
+#define GAUSS_TO_UT         100.0f  // 1 Gauss = 100 uT
+
 // Local state enum (maps into flight_computer->state)
 typedef enum {
 	STATE_WAITING = 0,
@@ -53,9 +64,56 @@ static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight
 	return flight_computer->apogee_pressure_window_sum / flight_computer->apogee_pressure_window_count;
 }
 
+void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
+    // Przeliczenie bezpośrednio na m/s^2
+    flight_computer->imu.acc_x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.acc_y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.acc_z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+
+//    // 2. Rzutowanie wskaźnika float na wskaźnik bajtów (uint8_t*), żeby dobrać się do pamięci
+//        uint8_t* p_x = (uint8_t*)&flight_computer->imu.acc_x_scaled;
+//        uint8_t* p_y = (uint8_t*)&flight_computer->imu.acc_y_scaled;
+//        uint8_t* p_z = (uint8_t*)&flight_computer->imu.acc_z_scaled;
+//
+//        // Oś X zajmie teraz pozycje: 17, 18, 19, 20 (4 bajty!)
+//        flight_computer->telemetry_frame[17] = p_x[0];
+//        flight_computer->telemetry_frame[18] = p_x[1];
+//        flight_computer->telemetry_frame[19] = p_x[2];
+//        flight_computer->telemetry_frame[20] = p_x[3];
+//
+//        // Oś Y zajmie pozycje: 21, 22, 23, 24 (Wchodzi na teren żyroskopu!)
+//        flight_computer->telemetry_frame[21] = p_y[0];
+//        flight_computer->telemetry_frame[22] = p_y[1];
+//        flight_computer->telemetry_frame[23] = p_y[2];
+//        flight_computer->telemetry_frame[24] = p_y[3];
+//
+//        // Oś Z zajmie pozycje: 25, 26, 27, 28
+//        flight_computer->telemetry_frame[25] = p_z[0];
+//        flight_computer->telemetry_frame[26] = p_z[1];
+//        flight_computer->telemetry_frame[27] = p_z[2];
+//        flight_computer->telemetry_frame[28] = p_z[3];
+}
+
+void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
+    // Przeliczenie surowych wartości na stopnie na sekundę (°/s)
+    flight_computer->imu.gyro_x_scaled = (float)flight_computer->imu.gyroscope.x / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyro_y_scaled = (float)flight_computer->imu.gyroscope.y / MPU_GYRO_SCALE_2000;
+    flight_computer->imu.gyro_z_scaled = (float)flight_computer->imu.gyroscope.z / MPU_GYRO_SCALE_2000;
+}
+
+void FlightComputer_scaleMagnetometer(FlightComputer* flight_computer) {
+    // Przeliczenie na Gausy, a następnie na mikrotesle (uT)
+    flight_computer->imu.mag_x_scaled = ((float)flight_computer->imu.magnetometer.x / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
+    flight_computer->imu.mag_y_scaled = ((float)flight_computer->imu.magnetometer.y / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
+    flight_computer->imu.mag_z_scaled = ((float)flight_computer->imu.magnetometer.z / HMC5883L_SCALE_Z) * GAUSS_TO_UT;
+}
+
 
 void Sensors_read(FlightComputer* flight_computer){
 	uint8_t read_data[6];
+
+	uint8_t config_to_write = 0x0B;
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
 	// ADXL345 accelerometer @ 0x53, reg 0x32
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.accelerometer.x = (int16_t)(read_data[1] << 8 | read_data[0]);
@@ -70,6 +128,10 @@ void Sensors_read(FlightComputer* flight_computer){
 		flight_computer->telemetry_frame[22] = read_data[4];
 	}
 
+	FlightComputer_scaleAccelerometer(flight_computer);
+
+	uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x68 << 1, 0x1B, 1, &gyro_config, 1, 100);
 	// MPU/gyro @ 0x68, reg 0x1D (read 6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x68 << 1, 0x1D, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.gyroscope.x = (int16_t)(read_data[0] << 8 | read_data[1]);
@@ -82,6 +144,13 @@ void Sensors_read(FlightComputer* flight_computer){
 		flight_computer->telemetry_frame[27] = read_data[4];
 		flight_computer->telemetry_frame[28] = read_data[5];
 	}
+
+	FlightComputer_scaleGyroscope(flight_computer);
+
+	uint8_t mag_config_b = 0x20; // Domyślny zakres +/- 1.3 Gauss
+	uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x01, 1, &mag_config_b, 1, 100);
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
 
 	// Magnetometer @ 0x1E reg 0x03 (6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x1E << 1, 0x03, 1, read_data, 6, 100) == HAL_OK) {
@@ -97,6 +166,7 @@ void Sensors_read(FlightComputer* flight_computer){
 		flight_computer->telemetry_frame[16] = read_data[3];
 	}
 
+	FlightComputer_scaleMagnetometer(flight_computer);
 	// BMP280 @ 0x1E reg 0xF7 (6 bytes)
 	HAL_I2C_Mem_Read(flight_computer->hi2c, 0x76 << 1, 0xF7, 1, read_data, 6, 100);
 	int32_t pressure_raw;

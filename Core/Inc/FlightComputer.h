@@ -63,6 +63,18 @@ typedef struct{
 	int16_t pressure;
 	int16_t temperature;
 
+	float acc_x_scaled;
+	float acc_y_scaled;
+	float acc_z_scaled;
+
+	float gyro_x_scaled;
+	float gyro_y_scaled;
+	float gyro_z_scaled;
+
+	float mag_x_scaled;
+	float mag_y_scaled;
+	float mag_z_scaled;
+
 } IMU;
 
 // BMP280 (ciśnienie + temperatura + wilgotność)
@@ -145,6 +157,7 @@ typedef struct{
 } FlightComputer;
 
 // Sensor access
+void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer);
 void Sensors_read(FlightComputer* flight_computer);
 void Sensors_bypass(FlightComputer* flight_computer);
 
