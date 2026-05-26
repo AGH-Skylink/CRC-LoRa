@@ -59,12 +59,22 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define VBAT_Pin GPIO_PIN_0
 #define VBAT_GPIO_Port GPIOA
+#define BUZZ_Pin GPIO_PIN_4
+#define BUZZ_GPIO_Port GPIOA
 #define SCK_Pin GPIO_PIN_5
 #define SCK_GPIO_Port GPIOA
 #define MISO_Pin GPIO_PIN_6
 #define MISO_GPIO_Port GPIOA
 #define MOSI_Pin GPIO_PIN_7
 #define MOSI_GPIO_Port GPIOA
+#define LED_R_Pin GPIO_PIN_12
+#define LED_R_GPIO_Port GPIOB
+#define LED_G_Pin GPIO_PIN_13
+#define LED_G_GPIO_Port GPIOB
+#define LED_B_Pin GPIO_PIN_14
+#define LED_B_GPIO_Port GPIOB
+#define LED_Y_Pin GPIO_PIN_15
+#define LED_Y_GPIO_Port GPIOB
 #define CS_Lora_Pin GPIO_PIN_8
 #define CS_Lora_GPIO_Port GPIOA
 #define led_parachute_Pin GPIO_PIN_11
