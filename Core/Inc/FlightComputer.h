@@ -42,6 +42,14 @@ typedef struct{
 	float y_scaled;
 	float z_scaled;
 
+	float x_biased;
+	float y_biased;
+	float z_biased;
+
+	float bias_x;
+	float bias_y;
+	float bias_z;
+
 } Accelerometer;
 
 // Żyroskop, część IMU

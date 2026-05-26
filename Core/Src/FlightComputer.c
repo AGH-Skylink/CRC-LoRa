@@ -12,8 +12,6 @@
 //#include "servos.h"
 //#include "power.h"
 
-#define bmp280 flight_computer->barothermo.handle
-
 #define ADXL345_SCALE_FACTOR  0.0039f      // 3.9 mg / LSB
 #define GRAVITY_EARTH         9.80665f     // m/s^2
 #define MPU_GYRO_SCALE_2000  16.4f
@@ -42,6 +40,7 @@ extern uint8_t uart_rx_buffer[18] = {0};
 extern volatile uint8_t new_data_flag = 0;
 
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
+#define ACC_CALIBRATION_SAMPLES 40
 
 // 0 - dane z czujnikow, 1 - dane po uarcie
 #define MODE 0
@@ -69,6 +68,9 @@ void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
     flight_computer->imu.accelerometer.x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
+    flight_computer->imu.accelerometer.x_biased = flight_computer->imu.accelerometer.x_scaled - flight_computer->imu.accelerometer.bias_x;
+    flight_computer->imu.accelerometer.y_scaled = flight_computer->imu.accelerometer.y_scaled - flight_computer->imu.accelerometer.bias_y;
+    flight_computer->imu.accelerometer.z_scaled = flight_computer->imu.accelerometer.z_scaled - flight_computer->imu.accelerometer.bias_z;
 }
 
 void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
@@ -85,12 +87,34 @@ void FlightComputer_scaleMagnetometer(FlightComputer* flight_computer) {
     flight_computer->imu.magnetometer.z_scaled  = ((float)flight_computer->imu.magnetometer.z / HMC5883L_SCALE_Z) * GAUSS_TO_UT;
 }
 
+void calculateAccelerometerBias(FlightComputer* flight_computer){
+	float x_sum, y_sum, z_sum;
+	int16_t x, y, z;
+	uint8_t read_data[6];
+
+	for(int i=0; i<ACC_CALIBRATION_SAMPLES; i++){
+		if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
+			x = (int16_t)(read_data[1] << 8 | read_data[0]);
+			y = (int16_t)(read_data[3] << 8 | read_data[2]);
+			z = (int16_t)(read_data[5] << 8 | read_data[4]);
+			x_sum = x_sum + ((float)x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH);
+			y_sum = y_sum + ((float)y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH);
+			z_sum = z_sum + ((float)z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH);
+		}else{
+			i = i-1;
+		}
+		HAL_Delay(50);
+	}
+	flight_computer->imu.accelerometer.bias_x = (float)(x_sum / ACC_CALIBRATION_SAMPLES);
+	flight_computer->imu.accelerometer.bias_y = (float)(y_sum / ACC_CALIBRATION_SAMPLES);
+	flight_computer->imu.accelerometer.bias_z = (float)(z_sum / ACC_CALIBRATION_SAMPLES);
+}
 
 void Sensors_read(FlightComputer* flight_computer){
 	uint8_t read_data[6];
 
-	uint8_t config_to_write = 0x0B;
-	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
+	//uint8_t config_to_write = 0x0B;
+	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
 	// ADXL345 accelerometer @ 0x53, reg 0x32
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.accelerometer.x = (int16_t)(read_data[1] << 8 | read_data[0]);
@@ -107,8 +131,8 @@ void Sensors_read(FlightComputer* flight_computer){
 
 	FlightComputer_scaleAccelerometer(flight_computer);
 
-	uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
-	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x68 << 1, 0x1B, 1, &gyro_config, 1, 100);
+	//uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
+	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x68 << 1, 0x1B, 1, &gyro_config, 1, 100);
 	// MPU/gyro @ 0x68, reg 0x1D (read 6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x68 << 1, 0x1D, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.gyroscope.x = (int16_t)(read_data[0] << 8 | read_data[1]);
@@ -124,10 +148,10 @@ void Sensors_read(FlightComputer* flight_computer){
 
 	FlightComputer_scaleGyroscope(flight_computer);
 
-	uint8_t mag_config_b = 0x20; // Domyślny zakres +/- 1.3 Gauss
-	uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
-	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x01, 1, &mag_config_b, 1, 100);
-	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
+	//uint8_t mag_config_b = 0x20; // Domyślny zakres +/- 1.3 Gauss
+	//uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
+	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x01, 1, &mag_config_b, 1, 100);
+	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
 
 	// Magnetometer @ 0x1E reg 0x03 (6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x1E << 1, 0x03, 1, read_data, 6, 100) == HAL_OK) {
@@ -340,6 +364,9 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	for (int i = 0; i < APOGEE_PRESSURE_WINDOW_SIZE; i = i+1) {
 		flight_computer->apogee_pressure_window[i] = 0;
 	}
+
+	// calculate acceleration bias
+	calculateAccelerometerBias(flight_computer);
 }
 
 void StateMachine_idle(FlightComputer* flight_computer){

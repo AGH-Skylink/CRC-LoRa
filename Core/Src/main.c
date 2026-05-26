@@ -139,7 +139,7 @@ int main(void)
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   uint8_t isSend = 65;
-  HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
+  //HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
   HAL_Delay(2000);
