@@ -70,6 +70,7 @@ typedef struct{
 
 	float pressure;
 	float temperature;
+	float altitude; // wysokosc w metrach
 
 	uint16_t T1;
 	int16_t  T2;
@@ -150,6 +151,7 @@ void Sensors_bypass(FlightComputer* flight_computer);
 // Sensor conversions
 void BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine);
 int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t temperature_raw);
+void BaroThermo_calculateAltitude(FlightComputer* flight_computer);
 
 // Higher-level APIs used by application (main)
 void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state);

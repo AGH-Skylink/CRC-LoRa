@@ -6,6 +6,7 @@
  *
  */
 
+#include <math.h>
 #include "FlightComputer.h"
 #include "pid.h"
 //#include "servos.h"
@@ -33,6 +34,8 @@ extern volatile uint8_t new_data_flag = 0;
 
 // 0 - dane z czujnikow, 1 - dane po uarcie
 #define MODE 0
+
+#define PRESSURE_SEA_LEVEL 101325.0f
 
 static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, int32_t pressure) {
 	uint8_t index = flight_computer->apogee_pressure_window_index;
@@ -103,6 +106,7 @@ void Sensors_read(FlightComputer* flight_computer){
 	// konwersja ciśnienia potrzebuje temperatury
 	int32_t t_fine = BaroThermo_convertTemperature(flight_computer, temperature_raw);
 	BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
+	BaroThermo_calculateAltitude(flight_computer);
 
 }
 
@@ -184,6 +188,16 @@ int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t t
 	flight_computer->barothermo.temperature = T;
 
 	return t_fine;
+}
+
+void BaroThermo_calculateAltitude(FlightComputer* flight_computer) {
+	float p = flight_computer->barothermo.pressure;
+
+	if (p > 0.0f) {
+		flight_computer->barothermo.altitude = 44330.77f * (1.0f - powf((p / PRESSURE_SEA_LEVEL), 0.190263f)); // Uproszczony wzór barometryczny
+	} else {
+		flight_computer->barothermo.altitude = 0.0f;
+	}
 }
 
 void LoRa_send_telemetry(FlightComputer* flight_computer){
