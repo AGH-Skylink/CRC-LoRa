@@ -6,6 +6,7 @@
  *
  */
 
+#include <math.h>
 #include "FlightComputer.h"
 #include "pid.h"
 //#include "servos.h"
@@ -44,6 +45,8 @@ extern volatile uint8_t new_data_flag = 0;
 
 // 0 - dane z czujnikow, 1 - dane po uarcie
 #define MODE 0
+
+#define PRESSURE_SEA_LEVEL 101325.0f
 
 static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, int32_t pressure) {
 	uint8_t index = flight_computer->apogee_pressure_window_index;
@@ -164,6 +167,17 @@ void Sensors_read(FlightComputer* flight_computer){
 	}
 
 	FlightComputer_scaleMagnetometer(flight_computer);
+	// BMP280 @ 0x1E reg 0xF7 (6 bytes)
+	HAL_I2C_Mem_Read(flight_computer->hi2c, 0x76 << 1, 0xF7, 1, read_data, 6, 100);
+	int32_t pressure_raw;
+	pressure_raw = (int32_t)((read_data[0] << 12) | (read_data[1] << 4) | (read_data[2] >> 4));
+	int32_t temperature_raw;
+	temperature_raw = (int32_t)((read_data[3] << 12) | (read_data[4] << 4) | (read_data[5] >> 4));
+	// konwersja ciśnienia potrzebuje temperatury
+	int32_t t_fine = BaroThermo_convertTemperature(flight_computer, temperature_raw);
+	BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
+	BaroThermo_calculateAltitude(flight_computer);
+
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){
@@ -191,6 +205,69 @@ void Sensors_bypass(FlightComputer* flight_computer){
 		flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
 	}
 	new_data_flag = 0;
+}
+
+void BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine){
+	float var1;
+	float var2;
+
+	float p;
+
+	var1 = ((float)t_fine / 2.0f) - 64000.0f;
+	var2 = var1 * var1 * ((float)flight_computer->barothermo.P6) / 32768.0f;
+	var2 = var2 + var1 * ((float)flight_computer->barothermo.P5) * 2.0f;
+	var2 = (var2 / 4.0f) + (((float)flight_computer->barothermo.P4) * 65536.0f);
+	var1 = (((float)flight_computer->barothermo.P3) * var1 * var1 / 524288.0f +
+	       ((float)flight_computer->barothermo.P2) * var1) / 524288.0f;
+	var1 = (1.0f + var1 / 32768.0f) * ((float)flight_computer->barothermo.P1);
+
+	if(var1 != 0.0f){
+	    p = 1048576.0f - (float)pressure_raw;
+	    p = (p - (var2 / 4096.0f)) * 6250.0f / var1;
+	    var1 = ((float)flight_computer->barothermo.P9) * p * p / 2147483648.0f;
+	    var2 = p * ((float)flight_computer->barothermo.P8) / 32768.0f;
+	    p = p + (var1 + var2 + ((float)flight_computer->barothermo.P7)) / 16.0f;
+	}else{
+	    p = 0;
+	}
+
+	flight_computer->barothermo.pressure = p;
+}
+
+int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t temperature_raw){
+	int32_t t_fine;
+
+	float var1;
+	float var2;
+	float T;
+
+	var1 = (((float)temperature_raw) / 16384.0f -
+	        ((float)flight_computer->barothermo.T1) / 1024.0f) *
+	        ((float)flight_computer->barothermo.T2);
+
+	var2 = ((((float)temperature_raw) / 131072.0f -
+	         ((float)flight_computer->barothermo.T1) / 8192.0f) *
+	        (((float)temperature_raw) / 131072.0f -
+	         ((float)flight_computer->barothermo.T1) / 8192.0f)) *
+	        ((float)flight_computer->barothermo.T3);
+
+	t_fine = (int32_t)(var1 + var2);
+
+	T = (var1 + var2) / 5120.0f;
+
+	flight_computer->barothermo.temperature = T;
+
+	return t_fine;
+}
+
+void BaroThermo_calculateAltitude(FlightComputer* flight_computer) {
+	float p = flight_computer->barothermo.pressure;
+
+	if (p > 0.0f) {
+		flight_computer->barothermo.altitude = 44330.77f * (1.0f - powf((p / PRESSURE_SEA_LEVEL), 0.190263f)); // Uproszczony wzór barometryczny
+	} else {
+		flight_computer->barothermo.altitude = 0.0f;
+	}
 }
 
 void LoRa_send_telemetry(FlightComputer* flight_computer){
@@ -226,12 +303,32 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	flight_computer->telemetry_frame[60] = 0x0D; // \r
 	flight_computer->telemetry_frame[61] = 0x00; // \0
 
-	/*bmp280_init_default_params(&(bmp280.params);
-	bmp280.addr = BMP280_I2C_ADDRESS_0;
-	bmp280.i2c = &hi2c1;*/
+	//Inicjalizacja BMP280
+	uint8_t settings = 0x08;
+	HAL_I2C_Mem_Write(hi2c, 0x76 << 1, 0xE0, 1, &settings, 1, 100);
+	HAL_Delay(100);
+	uint8_t calibration[24];
+	HAL_I2C_Mem_Read(hi2c, 0x76 << 1, 0x88, 1, calibration, 24, 100);
+	flight_computer->barothermo.T1 = (uint16_t)((calibration[1] << 8) | calibration[0]);
+	flight_computer->barothermo.T2 = (int16_t)((calibration[3] << 8) | calibration[2]);
+	flight_computer->barothermo.T3 = (int16_t)((calibration[5] << 8) | calibration[4]);
+	flight_computer->barothermo.P1 = (uint16_t)((calibration[7] << 8) | calibration[6]);
+	flight_computer->barothermo.P2 = (int16_t)((calibration[9] << 8) | calibration[8]);
+	flight_computer->barothermo.P3 = (int16_t)((calibration[11] << 8) | calibration[10]);
+	flight_computer->barothermo.P4 = (int16_t)((calibration[13] << 8) | calibration[12]);
+	flight_computer->barothermo.P5 = (int16_t)((calibration[15] << 8) | calibration[14]);
+	flight_computer->barothermo.P6 = (int16_t)((calibration[17] << 8) | calibration[16]);
+	flight_computer->barothermo.P7 = (int16_t)((calibration[19] << 8) | calibration[18]);
+	flight_computer->barothermo.P8 = (int16_t)((calibration[21] << 8) | calibration[20]);
+	flight_computer->barothermo.P9 = (int16_t)((calibration[23] << 8) | calibration[22]);
+	settings = 0x2B;
+	HAL_I2C_Mem_Write(hi2c, 0x76 << 1, 0xF4, 1, &settings, 1, 100);
+	settings = 0x00;
+	HAL_I2C_Mem_Write(hi2c, 0x76 << 1, 0xF5, 1, &settings, 1, 100);
+
 
 	// Inicjalizacja IMU
-	uint8_t settings = 0x08;
+	settings = 0x08;
 	HAL_I2C_Mem_Write(hi2c, 0x53 << 1, 0x2D, 1, &settings, 1, 100);
 	settings = 0x00;
 	HAL_I2C_Mem_Write(hi2c, 0x68 << 1, 0x3E, 1, &settings, 1, 100);
