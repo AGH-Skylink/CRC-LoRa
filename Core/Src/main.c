@@ -76,8 +76,8 @@ uint8_t gps_raw_data[GPS_BUF_SIZE];
 
 FlightComputer flight_computer;
 
-extern uint8_t uart_rx_buffer[36];
-extern volatile uint8_t new_data_flag;
+uint8_t uart_rx_buffer[36] = {0};
+volatile uint8_t new_data_flag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

@@ -15,9 +15,6 @@
 #include "LoRa.h"
 #include "bmp280.h"
 
-extern uint8_t uart_rx_buffer[18];
-extern volatile uint8_t new_data_flag;
-
 // Magnetometr, część IMU
 typedef struct{
 

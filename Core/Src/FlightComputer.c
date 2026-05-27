@@ -38,8 +38,8 @@ static PID_HandleTypedef pidZ;
 static double angleX = 0.0;
 static double angleZ = 0.0;
 
-extern uint8_t uart_rx_buffer[36] = {0};
-extern volatile uint8_t new_data_flag = 0;
+extern uint8_t uart_rx_buffer[36];
+extern volatile uint8_t new_data_flag;
 
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
 //#define ACC_CALIBRATION_SAMPLES 40
@@ -216,29 +216,45 @@ void Sensors_read(FlightComputer* flight_computer){
 }
 
 void Sensors_bypass(FlightComputer* flight_computer){ //niedokonczone
-	while(new_data_flag == 0){
-		HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
-		HAL_Delay(500);
-	}
 
-	// Magnetometer
-	flight_computer->imu.magnetometer.x = (int16_t)(uart_rx_buffer[0] << 8 | uart_rx_buffer[1]);
-	flight_computer->imu.magnetometer.y = (int16_t)(uart_rx_buffer[2] << 8 | uart_rx_buffer[3]);
-	flight_computer->imu.magnetometer.z = (int16_t)(uart_rx_buffer[4] << 8 | uart_rx_buffer[5]);
+//  WARTOSCI SUROWE
+//	// Magnetometer
+//	flight_computer->imu.magnetometer.x = (int16_t)(uart_rx_buffer[0] << 8 | uart_rx_buffer[1]);
+//	flight_computer->imu.magnetometer.y = (int16_t)(uart_rx_buffer[2] << 8 | uart_rx_buffer[3]);
+//	flight_computer->imu.magnetometer.z = (int16_t)(uart_rx_buffer[4] << 8 | uart_rx_buffer[5]);
+//
+//	// ADXL345 accelerometer
+//	flight_computer->imu.accelerometer.x = (int16_t)(uart_rx_buffer[6] << 8 | uart_rx_buffer[7]);
+//	flight_computer->imu.accelerometer.y = (int16_t)(uart_rx_buffer[8] << 8 | uart_rx_buffer[9]);
+//	flight_computer->imu.accelerometer.z = (int16_t)(uart_rx_buffer[10] << 8 | uart_rx_buffer[11]);
+//
+//	// MPU/gyro
+//	flight_computer->imu.gyroscope.x = (int16_t)(uart_rx_buffer[12] << 8 | uart_rx_buffer[13]);
+//	flight_computer->imu.gyroscope.y = (int16_t)(uart_rx_buffer[14] << 8 | uart_rx_buffer[15]);
+//	flight_computer->imu.gyroscope.z = (int16_t)(uart_rx_buffer[16] << 8 | uart_rx_buffer[17]);
+//
+//	for(int i=0; i<18; ++i){
+//		flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
+//	}
 
-	// ADXL345 accelerometer
-	flight_computer->imu.accelerometer.x = (int16_t)(uart_rx_buffer[6] << 8 | uart_rx_buffer[7]);
-	flight_computer->imu.accelerometer.y = (int16_t)(uart_rx_buffer[8] << 8 | uart_rx_buffer[9]);
-	flight_computer->imu.accelerometer.z = (int16_t)(uart_rx_buffer[10] << 8 | uart_rx_buffer[11]);
+	// Magnetometr
+	memcpy(&(flight_computer->imu.magnetometer.x_scaled), &uart_rx_buffer[0],  4);
+	memcpy(&(flight_computer->imu.magnetometer.y_scaled), &uart_rx_buffer[4],  4);
+	memcpy(&(flight_computer->imu.magnetometer.z_scaled), &uart_rx_buffer[8],  4);
 
-	// MPU/gyro
-	flight_computer->imu.gyroscope.x = (int16_t)(uart_rx_buffer[12] << 8 | uart_rx_buffer[13]);
-	flight_computer->imu.gyroscope.y = (int16_t)(uart_rx_buffer[14] << 8 | uart_rx_buffer[15]);
-	flight_computer->imu.gyroscope.z = (int16_t)(uart_rx_buffer[16] << 8 | uart_rx_buffer[17]);
+	// Akcelerometr
+	memcpy(&(flight_computer->imu.accelerometer.x_scaled), &uart_rx_buffer[12], 4);
+	memcpy(&(flight_computer->imu.accelerometer.y_scaled), &uart_rx_buffer[16], 4);
+	memcpy(&(flight_computer->imu.accelerometer.z_scaled), &uart_rx_buffer[20], 4);
 
-	for(int i=0; i<18; ++i){
-		flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
-	}
+	// Żyroskop
+	memcpy(&(flight_computer->imu.gyroscope.x_scaled),     &uart_rx_buffer[24], 4);
+	memcpy(&(flight_computer->imu.gyroscope.y_scaled),     &uart_rx_buffer[28], 4);
+	memcpy(&(flight_computer->imu.gyroscope.z_scaled),     &uart_rx_buffer[32], 4);
+
+	// Obliczenie długości wektorów wypadkowych z otrzymanych wartości rzeczywistych
+	FlightComputer_calculateVectorLengths(flight_computer);
+
 	new_data_flag = 0;
 }
 
