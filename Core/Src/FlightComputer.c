@@ -69,8 +69,8 @@ void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
     flight_computer->imu.accelerometer.y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.x_biased = flight_computer->imu.accelerometer.x_scaled - flight_computer->imu.accelerometer.bias_x;
-    flight_computer->imu.accelerometer.y_scaled = flight_computer->imu.accelerometer.y_scaled - flight_computer->imu.accelerometer.bias_y;
-    flight_computer->imu.accelerometer.z_scaled = flight_computer->imu.accelerometer.z_scaled - flight_computer->imu.accelerometer.bias_z;
+    flight_computer->imu.accelerometer.y_biased = flight_computer->imu.accelerometer.y_scaled - flight_computer->imu.accelerometer.bias_y;
+    flight_computer->imu.accelerometer.z_biased = flight_computer->imu.accelerometer.z_scaled - flight_computer->imu.accelerometer.bias_z;
 }
 
 void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
@@ -348,7 +348,13 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x02, 1, &settings, 1, 100);
 	settings = 0x00;
 	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x01, 1, &settings, 1, 100);
-	// zmiana zakresow
+
+    // store hi2c and huart handles for later sensor reads
+    flight_computer->hi2c = hi2c;
+    flight_computer->huart = huart;
+    flight_computer->parachuteCnt = 0;
+
+	// Zmiana zakresow IMU
 	uint8_t config_to_write = 0x0B; // Zakres +/- 16g
 	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
 	uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
@@ -358,11 +364,6 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
 	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
 
-
-    // store hi2c and huart handles for later sensor reads
-    flight_computer->hi2c = hi2c;
-    flight_computer->huart = huart;
-    flight_computer->parachuteCnt = 0;
 
     //ADC
     flight_computer->hadc = hadc;
