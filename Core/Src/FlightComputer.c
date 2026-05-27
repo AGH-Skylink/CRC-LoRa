@@ -508,20 +508,46 @@ uint8_t* FlightComputer_getTelemetry(FlightComputer* flight_computer) {
 	return &(flight_computer->telemetry_frame[0]);
 }
 
-void FlightComputer_loop(FlightComputer* flight_computer){
-
-	uint32_t time_buff = HAL_GetTick();
-
-	// Handle LoRa receive (commands)
+void FlightComputer_handleCommand(FlightComputer* flight_computer){
 	uint8_t received_data[1];
 	uint8_t bytesRecv = LoRa_receive(&(flight_computer->LoRa), received_data, 1);
 	if (bytesRecv > 0) {
 		flight_computer->telemetry_frame[6] = received_data[0];
 		flight_computer->last_cmd_rx = received_data[0];
-		if (received_data[0] == 8) {
-			flight_computer->parachuteCnt = 20;
+		switch (received_data[0]) {
+			case 0:
+				break;
+			case 1:
+				break;
+			case 2:
+				break;
+			case 3:
+				break;
+			case 4:
+				break;
+			case 5:
+				break;
+			case 6:
+				break;
+			case 7:
+				break;
+			case 8: // odpalenie spadochronu
+				flight_computer->parachuteCnt = 20;
+				break;
+			case 9:
+				break;
+			default:
+				break;
 		}
 	}
+}
+
+void FlightComputer_loop(FlightComputer* flight_computer){
+
+	uint32_t time_buff = HAL_GetTick();
+
+	// Handle LoRa receive (commands)
+	FlightComputer_handleCommand(flight_computer);
 
 	// Transmit telemetry and restart RX
 	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
@@ -552,10 +578,10 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	if (flight_computer->parachuteCnt > 0) {
 		flight_computer->parachuteCnt -= 1;
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_SET);
-		flight_computer->telemetry_frame[53] = 1;
+		//flight_computer->telemetry_frame[53] = 1;
 	} else {
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
-		flight_computer->telemetry_frame[53] = 0;
+		//flight_computer->telemetry_frame[53] = 0;
 	}
 
 	// State machine step
