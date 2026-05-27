@@ -76,7 +76,7 @@ uint8_t gps_raw_data[GPS_BUF_SIZE];
 
 FlightComputer flight_computer;
 
-extern uint8_t uart_rx_buffer[18];
+extern uint8_t uart_rx_buffer[36];
 extern volatile uint8_t new_data_flag;
 /* USER CODE END PV */
 
@@ -150,7 +150,7 @@ int main(void)
   HAL_Delay(1000);
   FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1);
   HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
-  HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 18);
+  HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 36);
   
 //  GPS_Init(&huart2, &huart1);
 
@@ -538,7 +538,7 @@ static void MX_GPIO_Init(void)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) {
     	new_data_flag = 1;
-        HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 18);
+        HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 36);
     }
 }
 

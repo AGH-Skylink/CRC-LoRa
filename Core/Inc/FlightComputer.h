@@ -109,6 +109,12 @@ typedef struct{
 	int16_t  P8;
 	int16_t  P9;
 
+	int32_t prev_pressure;
+	int32_t apogee_pressure_window[10];
+	uint8_t apogee_pressure_window_index;
+	uint8_t apogee_pressure_window_count;
+	int32_t apogee_pressure_window_sum;
+
 } BaroThermo;
 
 // Struktura danych przechowująca aktualny stan awioniki, dane czujników itp.
@@ -119,11 +125,6 @@ typedef struct{
 	int8_t state;
 	int8_t last_cmd_rx;
 	uint32_t state_change_timestamp;
-	int32_t prev_pressure;
-	int32_t apogee_pressure_window[10];
-	uint8_t apogee_pressure_window_index;
-	uint8_t apogee_pressure_window_count;
-	int32_t apogee_pressure_window_sum;
 
 	// Moduły
 	LoRa LoRa;

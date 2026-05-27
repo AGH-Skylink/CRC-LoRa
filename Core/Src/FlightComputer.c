@@ -38,7 +38,7 @@ static PID_HandleTypedef pidZ;
 static double angleX = 0.0;
 static double angleZ = 0.0;
 
-extern uint8_t uart_rx_buffer[18] = {0};
+extern uint8_t uart_rx_buffer[36] = {0};
 extern volatile uint8_t new_data_flag = 0;
 
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
@@ -51,19 +51,19 @@ extern volatile uint8_t new_data_flag = 0;
 #define PRESSURE_SEA_LEVEL 101325.0f
 
 static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, int32_t pressure) {
-	uint8_t index = flight_computer->apogee_pressure_window_index;
+	uint8_t index = flight_computer->barothermo.apogee_pressure_window_index;
 
-	if (flight_computer->apogee_pressure_window_count < APOGEE_PRESSURE_WINDOW_SIZE) {
-		flight_computer->apogee_pressure_window_count++;
+	if (flight_computer->barothermo.apogee_pressure_window_count < APOGEE_PRESSURE_WINDOW_SIZE) {
+		flight_computer->barothermo.apogee_pressure_window_count++;
 	} else {
-		flight_computer->apogee_pressure_window_sum -= flight_computer->apogee_pressure_window[index];
+		flight_computer->barothermo.apogee_pressure_window_sum -= flight_computer->barothermo.apogee_pressure_window[index];
 	}
 
-	flight_computer->apogee_pressure_window[index] = pressure;
-	flight_computer->apogee_pressure_window_sum += pressure;
-	flight_computer->apogee_pressure_window_index = (uint8_t)((index + 1) % APOGEE_PRESSURE_WINDOW_SIZE);
+	flight_computer->barothermo.apogee_pressure_window[index] = pressure;
+	flight_computer->barothermo.apogee_pressure_window_sum += pressure;
+	flight_computer->barothermo.apogee_pressure_window_index = (uint8_t)((index + 1) % APOGEE_PRESSURE_WINDOW_SIZE);
 
-	return flight_computer->apogee_pressure_window_sum / flight_computer->apogee_pressure_window_count;
+	return flight_computer->barothermo.apogee_pressure_window_sum / flight_computer->barothermo.apogee_pressure_window_count;
 }
 
 void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
@@ -215,7 +215,7 @@ void Sensors_read(FlightComputer* flight_computer){
 
 }
 
-void Sensors_bypass(FlightComputer* flight_computer){
+void Sensors_bypass(FlightComputer* flight_computer){ //niedokonczone
 	while(new_data_flag == 0){
 		HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 		HAL_Delay(500);
@@ -397,12 +397,12 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	// start in WAITING state
 	flight_computer->state = STATE_WAITING;
 	flight_computer->state_change_timestamp = HAL_GetTick();
-	flight_computer->prev_pressure = 0;
-	flight_computer->apogee_pressure_window_index = 0;
-	flight_computer->apogee_pressure_window_count = 0;
-	flight_computer->apogee_pressure_window_sum = 0;
+	flight_computer->barothermo.prev_pressure = 0;
+	flight_computer->barothermo.apogee_pressure_window_index = 0;
+	flight_computer->barothermo.apogee_pressure_window_count = 0;
+	flight_computer->barothermo.apogee_pressure_window_sum = 0;
 	for (int i = 0; i < APOGEE_PRESSURE_WINDOW_SIZE; i = i+1) {
-		flight_computer->apogee_pressure_window[i] = 0;
+		flight_computer->barothermo.apogee_pressure_window[i] = 0;
 	}
 
 	// calculate acceleration bias
@@ -486,10 +486,10 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			int32_t pressure = ((int32_t)(uint8_t)flight_computer->telemetry_frame[7] << 8) |
 							   (int32_t)(uint8_t)flight_computer->telemetry_frame[8];
 			int32_t pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
-			if (flight_computer->prev_pressure != 0 && pressure_average > flight_computer->prev_pressure) {
+			if (flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
 				return STATE_DESCENT;
 			}
-			flight_computer->prev_pressure = pressure_average;
+			flight_computer->barothermo.prev_pressure = pressure_average;
 			break;
 		}
 		case STATE_DESCENT:
