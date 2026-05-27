@@ -15,7 +15,7 @@
 #include "LoRa.h"
 #include "bmp280.h"
 
-extern uint8_t uart_rx_buffer[18];
+extern uint8_t uart_rx_buffer[36];
 extern volatile uint8_t new_data_flag;
 
 // Magnetometr, część IMU
@@ -109,11 +109,11 @@ typedef struct{
 	int16_t  P8;
 	int16_t  P9;
 
-	int32_t prev_pressure;
-	int32_t apogee_pressure_window[10];
+	float prev_pressure;
+	float apogee_pressure_window[10];
 	uint8_t apogee_pressure_window_index;
 	uint8_t apogee_pressure_window_count;
-	int32_t apogee_pressure_window_sum;
+	float apogee_pressure_window_sum;
 
 } BaroThermo;
 
@@ -125,6 +125,8 @@ typedef struct{
 	int8_t state;
 	int8_t last_cmd_rx;
 	uint32_t state_change_timestamp;
+	int8_t armed;
+	int8_t camera;
 
 	// Moduły
 	LoRa LoRa;

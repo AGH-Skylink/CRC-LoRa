@@ -50,7 +50,7 @@ extern volatile uint8_t new_data_flag = 0;
 
 #define PRESSURE_SEA_LEVEL 101325.0f
 
-static int32_t FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, int32_t pressure) {
+static float FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, float pressure) {
 	uint8_t index = flight_computer->barothermo.apogee_pressure_window_index;
 
 	if (flight_computer->barothermo.apogee_pressure_window_count < APOGEE_PRESSURE_WINDOW_SIZE) {
@@ -372,6 +372,11 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     // store hi2c and huart handles for later sensor reads
     flight_computer->hi2c = hi2c;
     flight_computer->huart = huart;
+
+    //state init
+    flight_computer->armed = 0;
+    flight_computer->camera = 0;
+
     flight_computer->parachuteCnt = 0;
 
 	// Zmiana zakresow IMU
@@ -433,10 +438,10 @@ void StateMachine_ascent(FlightComputer* flight_computer){
 	(void)flight_computer;
 }
 
-void StateMachine_apogee(FlightComputer* flight_computer){
+/*void StateMachine_apogee(FlightComputer* flight_computer){
 	// Placeholder - treat as immediate transition to descent
 	flight_computer->state = STATE_DESCENT;
-}
+}*/
 
 void StateMachine_descent(FlightComputer* flight_computer){
 	// per-state actions (none for now)
@@ -477,15 +482,16 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	switch (current) {
 		case STATE_WAITING:
 			if (flight_computer->last_cmd_rx == 8) return STATE_POWERED_ASCENT;
+			if (flight_computer->imu.accelerometer.acc_total > 4*GRAVITY_EARTH) return STATE_POWERED_ASCENT;
 			break;
 		case STATE_POWERED_ASCENT:
 			if (now - flight_computer->state_change_timestamp > MOTOR_BURN_TIME_MS) return STATE_UNPOWERED_ASCENT;
+			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) return STATE_UNPOWERED_ASCENT;
 			break;
 		case STATE_UNPOWERED_ASCENT: {
-			// pressure stored in telemetry_frame[7..8]
-			int32_t pressure = ((int32_t)(uint8_t)flight_computer->telemetry_frame[7] << 8) |
-							   (int32_t)(uint8_t)flight_computer->telemetry_frame[8];
-			int32_t pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
+			// pressure stored in barothermo.pressure
+			float pressure = flight_computer->barothermo.pressure;
+			float pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
 			if (flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
 				return STATE_DESCENT;
 			}
@@ -518,21 +524,25 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 			case 0:
 				break;
 			case 1:
+				flight_computer->armed = 1;
 				break;
 			case 2:
+				flight_computer->armed = 0;
 				break;
 			case 3:
 				break;
 			case 4:
 				break;
 			case 5:
+				flight_computer->camera = 1;
 				break;
 			case 6:
+				flight_computer->camera = 0;
 				break;
-			case 7:
-				break;
-			case 8: // odpalenie spadochronu
+			case 7: // odpalenie spadochronu
 				flight_computer->parachuteCnt = 20;
+				break;
+			case 8:
 				break;
 			case 9:
 				break;
@@ -585,32 +595,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	}
 
 	// State machine step
-	switch (flight_computer->state) {
-		case STATE_WAITING:
-			StateMachine_idle(flight_computer);
-			break;
-		case STATE_POWERED_ASCENT:
-			StateMachine_launch(flight_computer);
-			break;
-		case STATE_UNPOWERED_ASCENT:
-			StateMachine_ascent(flight_computer);
-			break;
-		case STATE_DESCENT:
-			StateMachine_descent(flight_computer);
-			break;
-		case STATE_LANDED:
-			StateMachine_landing(flight_computer);
-			break;
-		case STATE_ABORT:
-			// keep in abort or implement abort routine
-			break;
-		default:
-			break;
-	}
-
-	// update telemetry state and last command
-	flight_computer->telemetry_frame[5] = (uint8_t)flight_computer->state;
-	flight_computer->telemetry_frame[6] = (uint8_t)flight_computer->last_cmd_rx;
+	FlightComputer_handleState(flight_computer, flight_computer->state);
 
 	// battery placeholder
 //	int16_t batt = (int16_t)(read_battery_voltage_adc() * 100.0f);
@@ -621,17 +606,20 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	// RSSI
 	flight_computer->telemetry_frame[56] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
 
+	//state actualization
+	flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
+	flight_computer->telemetry_frame[5] = flight_computer->state;
+
 	// check if the telemetry is send
 	LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
 	LoRa_startReceiving(&(flight_computer->LoRa));
-	HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
+	//HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 
+	// a window for uplink communication - entire loop should last 50 ms
 	uint32_t time_diff = FRAME_TIME - 1 - (HAL_GetTick() - time_buff);
-
 	if(time_diff < 1){
 		time_diff = 1;
 	}
-
 	HAL_Delay(time_diff);
 
 }
