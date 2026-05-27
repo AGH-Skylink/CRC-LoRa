@@ -113,8 +113,6 @@ void calculateAccelerometerBias(FlightComputer* flight_computer){
 void Sensors_read(FlightComputer* flight_computer){
 	uint8_t read_data[6];
 
-	//uint8_t config_to_write = 0x0B;
-	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
 	// ADXL345 accelerometer @ 0x53, reg 0x32
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.accelerometer.x = (int16_t)(read_data[1] << 8 | read_data[0]);
@@ -131,8 +129,6 @@ void Sensors_read(FlightComputer* flight_computer){
 
 	FlightComputer_scaleAccelerometer(flight_computer);
 
-	//uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
-	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x68 << 1, 0x1B, 1, &gyro_config, 1, 100);
 	// MPU/gyro @ 0x68, reg 0x1D (read 6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x68 << 1, 0x1D, 1, read_data, 6, 100) == HAL_OK) {
 		flight_computer->imu.gyroscope.x = (int16_t)(read_data[0] << 8 | read_data[1]);
@@ -147,11 +143,6 @@ void Sensors_read(FlightComputer* flight_computer){
 	}
 
 	FlightComputer_scaleGyroscope(flight_computer);
-
-	//uint8_t mag_config_b = 0x20; // Domyślny zakres +/- 1.3 Gauss
-	//uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
-	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x01, 1, &mag_config_b, 1, 100);
-	//HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
 
 	// Magnetometer @ 0x1E reg 0x03 (6 bytes)
 	if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x1E << 1, 0x03, 1, read_data, 6, 100) == HAL_OK) {
@@ -339,6 +330,16 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x02, 1, &settings, 1, 100);
 	settings = 0x00;
 	HAL_I2C_Mem_Write(hi2c, 0x1E << 1,0x01, 1, &settings, 1, 100);
+	// zmiana zakresow
+	uint8_t config_to_write = 0x0B; // Zakres +/- 16g
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
+	uint8_t gyro_config = 0x18; // Zakres +/- 2000 deg/s
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x68 << 1, 0x1B, 1, &gyro_config, 1, 100);
+	uint8_t mag_config_b = 0x20; // Domyślny zakres +/- 1.3 Gauss
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x01, 1, &mag_config_b, 1, 100);
+	uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
+	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
+
 
     // store hi2c and huart handles for later sensor reads
     flight_computer->hi2c = hi2c;
