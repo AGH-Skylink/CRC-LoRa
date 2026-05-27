@@ -21,6 +21,8 @@
 #define HMC5883L_SCALE_Z    980.0f
 #define GAUSS_TO_UT         100.0f  // 1 Gauss = 100 uT
 
+#define FRAME_TIME 50
+
 // Local state enum (maps into flight_computer->state)
 typedef enum {
 	STATE_WAITING = 0,
@@ -508,7 +510,7 @@ uint8_t* FlightComputer_getTelemetry(FlightComputer* flight_computer) {
 
 void FlightComputer_loop(FlightComputer* flight_computer){
 
-	flight_computer->telemetry_frame[45]++;
+	uint32_t time_buff = HAL_GetTick();
 
 	// Handle LoRa receive (commands)
 	uint8_t received_data[1];
@@ -524,12 +526,13 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	// Transmit telemetry and restart RX
 	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
 
-	uint32_t time_buff = HAL_GetTick();
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
 	flight_computer->telemetry_frame[3] = (uint8_t)(time_buff >> 8);
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
 
+	// debug - frames counting
+	flight_computer->telemetry_frame[45]++;
 
 	// Read sensors and update telemetry bytes
 	if(MODE == 0){
@@ -597,6 +600,12 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	LoRa_startReceiving(&(flight_computer->LoRa));
 	HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 
-	HAL_Delay(10);
+	uint32_t time_diff = FRAME_TIME - 1 - (HAL_GetTick() - time_buff);
+
+	if(time_diff < 1){
+		time_diff = 1;
+	}
+
+	HAL_Delay(time_diff);
 
 }
