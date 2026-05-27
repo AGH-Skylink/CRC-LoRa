@@ -507,11 +507,29 @@ uint8_t* FlightComputer_getTelemetry(FlightComputer* flight_computer) {
 }
 
 void FlightComputer_loop(FlightComputer* flight_computer){
+
+	flight_computer->telemetry_frame[45]++;
+
+	// Handle LoRa receive (commands)
+	uint8_t received_data[1];
+	uint8_t bytesRecv = LoRa_receive(&(flight_computer->LoRa), received_data, 1);
+	if (bytesRecv > 0) {
+		flight_computer->telemetry_frame[6] = received_data[0];
+		flight_computer->last_cmd_rx = received_data[0];
+		if (received_data[0] == 8) {
+			flight_computer->parachuteCnt = 20;
+		}
+	}
+
+	// Transmit telemetry and restart RX
+	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
+
 	uint32_t time_buff = HAL_GetTick();
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
 	flight_computer->telemetry_frame[3] = (uint8_t)(time_buff >> 8);
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
+
 
 	// Read sensors and update telemetry bytes
 	if(MODE == 0){
@@ -526,17 +544,6 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	HAL_ADC_Start(flight_computer->hadc);
 	flight_computer->telemetry_frame[54] = (uint8_t)(adcValue >> 8);
 	flight_computer->telemetry_frame[55] = (uint8_t)adcValue;
-
-	// Handle LoRa receive (commands)
-	uint8_t received_data[1];
-	uint8_t bytesRecv = LoRa_receive(&(flight_computer->LoRa), received_data, 1);
-	if (bytesRecv > 0) {
-		flight_computer->telemetry_frame[6] = received_data[0];
-		flight_computer->last_cmd_rx = received_data[0];
-		if (received_data[0] == 8) {
-			flight_computer->parachuteCnt = 20;
-		}
-	}
 
 	// Parachute output handling (legacy behaviour)
 	if (flight_computer->parachuteCnt > 0) {
@@ -585,8 +592,8 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	// RSSI
 	flight_computer->telemetry_frame[56] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
 
-	// Transmit telemetry and restart RX
-	LoRa_transmit(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
+	// check if the telemetry is send
+	LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
 	LoRa_startReceiving(&(flight_computer->LoRa));
 	HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 

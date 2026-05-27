@@ -450,6 +450,41 @@ uint8_t LoRa_transmit(LoRa* _LoRa, uint8_t* data, uint8_t length, uint16_t timeo
 	}
 }
 
+/* cesko-slovensko technologia rozszczepienia funkcji */
+
+int LoRa_transmit_send(LoRa* _LoRa, uint8_t* data, uint8_t length, uint16_t timeout){
+	uint8_t read;
+
+	int mode = _LoRa->current_mode;
+	LoRa_gotoMode(_LoRa, STNBY_MODE);
+	read = LoRa_read(_LoRa, RegFiFoTxBaseAddr);
+	LoRa_write(_LoRa, RegFiFoAddPtr, read);
+	LoRa_write(_LoRa, RegPayloadLength, length);
+	LoRa_BurstWrite(_LoRa, RegFiFo, data, length);
+	LoRa_gotoMode(_LoRa, TRANSMIT_MODE);
+	return mode;
+}
+
+uint8_t LoRa_transmit_check(LoRa* _LoRa, uint16_t timeout, int mode){
+	uint8_t read;
+
+	while(1){
+		read = LoRa_read(_LoRa, RegIrqFlags);
+		if((read & 0x08)!=0){
+			LoRa_write(_LoRa, RegIrqFlags, 0xFF);
+			LoRa_gotoMode(_LoRa, mode);
+			return 1;
+		}
+		else{
+			if(--timeout==0){
+				LoRa_gotoMode(_LoRa, mode);
+				return 0;
+			}
+		}
+		HAL_Delay(1);
+	}
+}
+
 /* ----------------------------------------------------------------------------- *\
 		name        : LoRa_startReceiving
 

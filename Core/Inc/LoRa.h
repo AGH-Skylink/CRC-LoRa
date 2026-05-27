@@ -126,6 +126,11 @@ void LoRa_setOCP(LoRa* _LoRa, uint8_t current);
 void LoRa_setTOMsb_setCRCon(LoRa* _LoRa);
 void LoRa_setSyncWord(LoRa* _LoRa, uint8_t syncword);
 uint8_t LoRa_transmit(LoRa* _LoRa, uint8_t* data, uint8_t length, uint16_t timeout);
+
+//something stupid
+int LoRa_transmit_send(LoRa* _LoRa, uint8_t* data, uint8_t length, uint16_t timeout);
+uint8_t LoRa_transmit_check(LoRa* _LoRa, uint16_t timeout, int mode);
+
 void LoRa_startReceiving(LoRa* _LoRa);
 uint8_t LoRa_receive(LoRa* _LoRa, uint8_t* data, uint8_t length);
 void LoRa_receive_IT(LoRa* _LoRa, uint8_t* data, uint8_t length);
