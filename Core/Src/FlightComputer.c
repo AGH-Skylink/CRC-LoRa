@@ -110,6 +110,22 @@ void calculateAccelerometerBias(FlightComputer* flight_computer){
 	flight_computer->imu.accelerometer.bias_z = (float)(z_sum / ACC_CALIBRATION_SAMPLES);
 }
 
+void FlightComputer_calculateVectorLengths(FlightComputer* flight_computer) {
+    // Accelerometer
+    float ax = flight_computer->imu.accelerometer.x_scaled;
+    float ay = flight_computer->imu.accelerometer.y_scaled;
+    float az = flight_computer->imu.accelerometer.z_scaled;
+
+    flight_computer->imu.accelerometer.acc_total = sqrtf((ax * ax) + (ay * ay) + (az * az));
+
+    // Magnetometer
+    float mx = flight_computer->imu.magnetometer.x_scaled;
+    float my = flight_computer->imu.magnetometer.y_scaled;
+    float mz = flight_computer->imu.magnetometer.z_scaled;
+
+    flight_computer->imu.magnetometer.mag_total = sqrtf((mx * mx) + (my * my) + (mz * mz));
+}
+
 void Sensors_read(FlightComputer* flight_computer){
 	uint8_t read_data[6];
 
@@ -169,6 +185,8 @@ void Sensors_read(FlightComputer* flight_computer){
 	int32_t t_fine = BaroThermo_convertTemperature(flight_computer, temperature_raw);
 	BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
 	BaroThermo_calculateAltitude(flight_computer);
+
+	FlightComputer_calculateVectorLengths(flight_computer);
 
 }
 
