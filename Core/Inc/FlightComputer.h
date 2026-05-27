@@ -44,13 +44,13 @@ typedef struct{
 	float y_scaled;
 	float z_scaled;
 
-	float x_biased;
+	/*float x_biased;
 	float y_biased;
 	float z_biased;
 
 	float bias_x;
 	float bias_y;
-	float bias_z;
+	float bias_z;*/
 
 	float acc_total; // Całkowite przyspieszenie w m/s^2
 
@@ -91,6 +91,7 @@ typedef struct{
 typedef struct{
 
 	float pressure;
+	float pressure_reference;
 	float temperature;
 	float altitude; // wysokosc w metrach
 
@@ -172,8 +173,8 @@ void Sensors_read(FlightComputer* flight_computer);
 void Sensors_bypass(FlightComputer* flight_computer);
 
 // Sensor conversions
-void BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine);
-int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t temperature_raw);
+float BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine);
+int32_t BaroThermo_calculate_t_fine(FlightComputer* flight_computer, int32_t temperature_raw);
 void BaroThermo_calculateAltitude(FlightComputer* flight_computer);
 
 void FlightComputer_calculateVectorLengths(FlightComputer* flight_computer);

@@ -40,7 +40,8 @@ extern uint8_t uart_rx_buffer[18] = {0};
 extern volatile uint8_t new_data_flag = 0;
 
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
-#define ACC_CALIBRATION_SAMPLES 40
+//#define ACC_CALIBRATION_SAMPLES 40
+#define PRESSURE_CALIBRATION_SAMPLES 40
 
 // 0 - dane z czujnikow, 1 - dane po uarcie
 #define MODE 0
@@ -68,9 +69,9 @@ void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
     flight_computer->imu.accelerometer.x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
-    flight_computer->imu.accelerometer.x_biased = flight_computer->imu.accelerometer.x_scaled - flight_computer->imu.accelerometer.bias_x;
+    /*flight_computer->imu.accelerometer.x_biased = flight_computer->imu.accelerometer.x_scaled - flight_computer->imu.accelerometer.bias_x;
     flight_computer->imu.accelerometer.y_biased = flight_computer->imu.accelerometer.y_scaled - flight_computer->imu.accelerometer.bias_y;
-    flight_computer->imu.accelerometer.z_biased = flight_computer->imu.accelerometer.z_scaled - flight_computer->imu.accelerometer.bias_z;
+    flight_computer->imu.accelerometer.z_biased = flight_computer->imu.accelerometer.z_scaled - flight_computer->imu.accelerometer.bias_z;*/
 }
 
 void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
@@ -87,7 +88,7 @@ void FlightComputer_scaleMagnetometer(FlightComputer* flight_computer) {
     flight_computer->imu.magnetometer.z_scaled  = ((float)flight_computer->imu.magnetometer.z / HMC5883L_SCALE_Z) * GAUSS_TO_UT;
 }
 
-void calculateAccelerometerBias(FlightComputer* flight_computer){
+/*void calculateAccelerometerBias(FlightComputer* flight_computer){
 	float x_sum, y_sum, z_sum;
 	int16_t x, y, z;
 	uint8_t read_data[6];
@@ -108,6 +109,27 @@ void calculateAccelerometerBias(FlightComputer* flight_computer){
 	flight_computer->imu.accelerometer.bias_x = (float)(x_sum / ACC_CALIBRATION_SAMPLES);
 	flight_computer->imu.accelerometer.bias_y = (float)(y_sum / ACC_CALIBRATION_SAMPLES);
 	flight_computer->imu.accelerometer.bias_z = (float)(z_sum / ACC_CALIBRATION_SAMPLES);
+}*/
+
+void calculatePressureReference(FlightComputer* flight_computer){
+	float pressure;
+	float p_sum = 0;
+	uint8_t read_data[6];
+	int32_t pressure_raw, temperature_raw, t_fine;
+
+	for(int i=0; i<PRESSURE_CALIBRATION_SAMPLES; i++){
+		if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x76 << 1, 0xF7, 1, read_data, 6, 100) == HAL_OK) {
+			pressure_raw = (int32_t)((read_data[0] << 12) | (read_data[1] << 4) | (read_data[2] >> 4));
+			temperature_raw = (int32_t)((read_data[3] << 12) | (read_data[4] << 4) | (read_data[5] >> 4));
+			t_fine= BaroThermo_calculate_t_fine(flight_computer, temperature_raw);
+			p_sum = p_sum + BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
+		}else{
+			i = i-1;
+		}
+		HAL_Delay(50);
+	}
+
+	flight_computer->barothermo.pressure_reference = (float)(p_sum / PRESSURE_CALIBRATION_SAMPLES);
 }
 
 void FlightComputer_calculateVectorLengths(FlightComputer* flight_computer) {
@@ -182,8 +204,9 @@ void Sensors_read(FlightComputer* flight_computer){
 	int32_t temperature_raw;
 	temperature_raw = (int32_t)((read_data[3] << 12) | (read_data[4] << 4) | (read_data[5] >> 4));
 	// konwersja ciśnienia potrzebuje temperatury
-	int32_t t_fine = BaroThermo_convertTemperature(flight_computer, temperature_raw);
-	BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
+	int32_t t_fine = BaroThermo_calculate_t_fine(flight_computer, temperature_raw);
+	flight_computer->barothermo.temperature = t_fine / 5120.0f;
+	flight_computer->barothermo.pressure = BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
 	BaroThermo_calculateAltitude(flight_computer);
 
 	FlightComputer_calculateVectorLengths(flight_computer);
@@ -217,7 +240,7 @@ void Sensors_bypass(FlightComputer* flight_computer){
 	new_data_flag = 0;
 }
 
-void BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine){
+float BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine){
 	float var1;
 	float var2;
 
@@ -241,15 +264,14 @@ void BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressur
 	    p = 0;
 	}
 
-	flight_computer->barothermo.pressure = p;
+	return p;
 }
 
-int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t temperature_raw){
+int32_t BaroThermo_calculate_t_fine(FlightComputer* flight_computer, int32_t temperature_raw){
 	int32_t t_fine;
 
 	float var1;
 	float var2;
-	float T;
 
 	var1 = (((float)temperature_raw) / 16384.0f -
 	        ((float)flight_computer->barothermo.T1) / 1024.0f) *
@@ -263,10 +285,6 @@ int32_t BaroThermo_convertTemperature(FlightComputer* flight_computer, int32_t t
 
 	t_fine = (int32_t)(var1 + var2);
 
-	T = (var1 + var2) / 5120.0f;
-
-	flight_computer->barothermo.temperature = T;
-
 	return t_fine;
 }
 
@@ -274,7 +292,7 @@ void BaroThermo_calculateAltitude(FlightComputer* flight_computer) {
 	float p = flight_computer->barothermo.pressure;
 
 	if (p > 0.0f) {
-		flight_computer->barothermo.altitude = 44330.77f * (1.0f - powf((p / PRESSURE_SEA_LEVEL), 0.190263f)); // Uproszczony wzór barometryczny
+		flight_computer->barothermo.altitude = 44330.77f * (1.0f - powf((p / flight_computer->barothermo.pressure_reference), 0.190263f)); // Uproszczony wzór barometryczny
 	} else {
 		flight_computer->barothermo.altitude = 0.0f;
 	}
@@ -386,7 +404,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	}
 
 	// calculate acceleration bias
-	calculateAccelerometerBias(flight_computer);
+	calculatePressureReference(flight_computer);
 }
 
 void StateMachine_idle(FlightComputer* flight_computer){
