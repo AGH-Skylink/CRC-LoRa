@@ -21,7 +21,9 @@ typedef struct {
     float   course;
 } GPS_Data_t;
 
-void GPS_Init(UART_HandleTypeDef *huart_gps, UART_HandleTypeDef *huart_debug);
+void GPS_Init_debug(UART_HandleTypeDef *huart_gps, UART_HandleTypeDef *huart_debug);
+void GPS_Init(UART_HandleTypeDef *huart_gps);
+void GPS_Task_debug(void);
 void GPS_Task(void);
 GPS_Data_t GPS_GetData(void);
 

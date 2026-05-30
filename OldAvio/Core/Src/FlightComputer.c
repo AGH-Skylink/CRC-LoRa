@@ -9,6 +9,7 @@
 #include <math.h>
 #include "FlightComputer.h"
 #include "pid.h"
+#include "gps.h"
 //#include "servos.h"
 //#include "power.h"
 
@@ -361,8 +362,7 @@ void LoRa_send_telemetry(FlightComputer* flight_computer){
 
 }
 
-void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart){
+void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi, GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart, UART_HandleTypeDef* huart_gps){
 
 
 	// LORA
@@ -429,6 +429,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     // store hi2c and huart handles for later sensor reads
     flight_computer->hi2c = hi2c;
     flight_computer->huart = huart;
+    flight_computer->huart_gps = huart_gps;
 
     //state init
     flight_computer->armed = 0;
@@ -471,6 +472,8 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 
 	// calculate acceleration bias
 	calculatePressureReference(flight_computer);
+
+	GPS_Init(flight_computer->huart_gps);
 }
 
 void StateMachine_idle(FlightComputer* flight_computer){
@@ -683,6 +686,15 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	LoRa_startReceiving(&(flight_computer->LoRa));
 	//HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 
+	GPS_Data_t gps = GPS_GetData();
+
+	flight_computer->telemetry_frame[29] = gps.fix_quality;
+	flight_computer->telemetry_frame[30] = gps.satellites_tracked;
+
+	memcpy(&flight_computer->telemetry_frame[31], &gps.lat, 4);
+	memcpy(&flight_computer->telemetry_frame[35], &gps.lon, 4);
+	memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
+
 	// a window for uplink communication - entire loop should last 50 ms
 	uint32_t time_diff = FRAME_TIME - 1 - (HAL_GetTick() - time_buff);
 	if(time_diff < 1){
@@ -690,8 +702,14 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	}
 
 	if(MODE == 0){
-		HAL_Delay(time_diff);
+	    uint32_t deadline = HAL_GetTick() + time_diff;
+	    while(HAL_GetTick() < deadline){
+	        GPS_Task();
+	    }
 	}else{
-		HAL_Delay(10);
+	    uint32_t deadline = HAL_GetTick() + 10;
+	    while(HAL_GetTick() < deadline){
+	        GPS_Task();
+	    }
 	}
 }

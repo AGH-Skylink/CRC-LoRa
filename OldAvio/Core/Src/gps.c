@@ -17,13 +17,13 @@ static uint8_t gps_char;
 static uint8_t gps_idx = 0;
 static GPS_Data_t gps_data = {0};
 
-void GPS_Init(UART_HandleTypeDef *huart_gps, UART_HandleTypeDef *huart_debug)
+void GPS_Init_debug(UART_HandleTypeDef *huart_gps, UART_HandleTypeDef *huart_debug)
 {
     _huart_gps   = huart_gps;
     _huart_debug = huart_debug;
 }
 
-void GPS_Task(void)
+void GPS_Task_debug(void)
 {
     if (HAL_UART_Receive(_huart_gps, &gps_char, 1, 100) != HAL_OK)
         return;
@@ -86,4 +86,49 @@ void GPS_Task(void)
 GPS_Data_t GPS_GetData(void)
 {
     return gps_data;
+}
+
+void GPS_Init(UART_HandleTypeDef *huart_gps)
+{
+    _huart_gps = huart_gps;
+}
+
+void GPS_Task(void)
+{
+    if (HAL_UART_Receive(_huart_gps, &gps_char, 1, 0) != HAL_OK)
+        return;
+
+    if (gps_char == '\n' || gps_idx >= MINMEA_MAX_SENTENCE_LENGTH - 1)
+    {
+        gps_line[gps_idx] = '\0';
+        gps_idx = 0;
+
+        switch (minmea_sentence_id(gps_line, false))
+        {
+            case MINMEA_SENTENCE_GGA: {
+                struct minmea_sentence_gga frame;
+                if (minmea_parse_gga(&frame, gps_line)) {
+                    gps_data.fix_quality        = frame.fix_quality;
+                    gps_data.satellites_tracked = frame.satellites_tracked;
+                    gps_data.lat = minmea_tocoord(&frame.latitude);
+                    gps_data.lon = minmea_tocoord(&frame.longitude);
+                    gps_data.alt = minmea_tofloat(&frame.altitude);
+                }
+            } break;
+
+            case MINMEA_SENTENCE_RMC: {
+                struct minmea_sentence_rmc frame;
+                if (minmea_parse_rmc(&frame, gps_line)) {
+                    gps_data.speed  = minmea_tofloat(&frame.speed);
+                    gps_data.course = minmea_tofloat(&frame.course);
+                }
+            } break;
+
+            default: break;
+        }
+    }
+    else
+    {
+        gps_line[gps_idx++] = gps_char;
+    }
 }
