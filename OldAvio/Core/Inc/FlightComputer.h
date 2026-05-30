@@ -138,6 +138,7 @@ typedef struct{
 	I2C_HandleTypeDef* hi2c;
 	ADC_HandleTypeDef* hadc;
 	UART_HandleTypeDef* huart;
+	UART_HandleTypeDef* huart_gps;
 
 	// parachute counter (loops remaining to fire output)
 	int parachuteCnt;
@@ -187,7 +188,7 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer);
 uint8_t* FlightComputer_getTelemetry(FlightComputer* flight_computer);
 
 void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi,
-		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart);
+		GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart, UART_HandleTypeDef* huart_gps);
 void FlightComputer_loop(FlightComputer* flight_computer);
 
 void StateMachine_idle(FlightComputer* flight_computer);
