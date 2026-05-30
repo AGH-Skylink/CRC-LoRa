@@ -434,6 +434,8 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     flight_computer->armed = 0;
     flight_computer->camera = 0;
 
+    // parachute logic init
+    flight_computer->parachute_fired = 0;
     flight_computer->parachuteCnt = 0;
 
 	// Zmiana zakresow IMU
@@ -550,7 +552,7 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			float pressure = flight_computer->barothermo.pressure;
 			float pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
 			if (flight_computer->barothermo.apogee_pressure_window_index == 0 && flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
-				flight_computer->parachuteCnt = 20;
+				//flight_computer->parachuteCnt = 20;
 				return STATE_DESCENT;
 			}
 			if(flight_computer->barothermo.apogee_pressure_window_index == 0){
@@ -600,7 +602,10 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 				flight_computer->camera = 0;
 				break;
 			case 7: // odpalenie spadochronu
-				flight_computer->parachuteCnt = 20;
+				if(flight_computer->parachute_fired == 0){
+					flight_computer->parachute_fired = 1;
+					flight_computer->parachuteCnt = 30;
+				}
 				break;
 			case 8:
 				break;

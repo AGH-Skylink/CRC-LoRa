@@ -141,6 +141,8 @@ typedef struct{
 
 	// parachute counter (loops remaining to fire output)
 	int parachuteCnt;
+	// flag to avoid second launch
+	uint8_t parachute_fired;
 
 	// Telemetria
 	int32_t time;
