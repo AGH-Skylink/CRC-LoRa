@@ -16,7 +16,7 @@
 #include "bmp280.h"
 
 
-extern uint8_t uart_rx_buffer[36];
+extern uint8_t uart_rx_buffer[40];
 extern volatile uint8_t new_data_flag;
 
 // Magnetometr, część IMU
@@ -148,25 +148,22 @@ typedef struct{
 	int16_t battery_voltage;
 	int8_t RSSI;
 
-	uint8_t telemetry_frame[62];
+	uint8_t telemetry_frame[50];
 	/*
-		0 - preambuła
-		1-4 - timestamp
-		5 - stan
-		6 - ostatnia komenda
-		7-8 - wysokosc [decymetry]
-		9-10 - temperatura
-		11-16 - magnetometr x,y,z
-		17-22 - akcelerometr x,y,z
-		23-28 - żyroskop x,y,z
-		29-30 - ciśnienie imu (TO DELETE)
-		31-32 - temperatura imu (TO DELETE)
-		33-52 - GPS (TBD)
-		53 - GPIO state
-		54-55 - napięcie na baterii
-		56 - RSSI
-		57-58 - CRC (upewnić się czy potrzebne)
-		59-61 - zakończenie (\n\r\0)
+		0 - preambuła ($) [uint8]
+		1-4 - timestamp [uint32]
+		5 - stan [uint8]
+		6 - ostatnia komenda [uint8]
+		7-8 - wysokosc [int16, decymetry]
+		9-10 - temperatura [int16, 1/100 st.C]
+		11-16 - magnetometr (x,y,z) [3x int16]
+		17-22 - akcelerometr (x,y,z) [3x int16]
+		23-28 - żyroskop (x,y,z) [3x int16]
+		29-42 - GPS (fix quality, liczba satelitow, szerokosc, długosc, wysokosc) [2x uint8, 3x float]
+		43 - GPIO state (pyro1, pyro2, led_r, led_g, led_b, led_y, buzzer, camera) [uint8]
+		44-45 - napięcie na baterii [uint16, 1/100 V]
+		46 - RSSI [uint8]
+		47-49 - zakończenie (\n\r\0) [3x uint8]
 	*/
 
 } FlightComputer;

@@ -76,7 +76,7 @@ uint8_t gps_raw_data[GPS_BUF_SIZE];
 
 FlightComputer flight_computer;
 
-uint8_t uart_rx_buffer[36] = {0};
+uint8_t uart_rx_buffer[40] = {0};
 volatile uint8_t new_data_flag = 0;
 /* USER CODE END PV */
 
@@ -143,14 +143,16 @@ int main(void)
   HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
   HAL_Delay(2000);
+  FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1);
   HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
   HAL_UART_Transmit(&huart1, &isSend, 1, 100);
-  HAL_Delay(1000);
-  FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1);
-  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
-  HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 36);
+  /*for(int i=0;i<1000;i++){
+	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
+	  HAL_Delay(100);
+  }*/
+  HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 40);
   
 //  GPS_Init(&huart2, &huart1);
 
@@ -538,7 +540,7 @@ static void MX_GPIO_Init(void)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) {
     	new_data_flag = 1;
-        HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 36);
+        HAL_UART_Receive_IT(&huart1, uart_rx_buffer, 40);
     }
 }
 

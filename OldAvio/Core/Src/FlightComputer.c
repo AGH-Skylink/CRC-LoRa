@@ -38,7 +38,7 @@ static PID_HandleTypedef pidZ;
 static double angleX = 0.0;
 static double angleZ = 0.0;
 
-extern uint8_t uart_rx_buffer[36];
+extern uint8_t uart_rx_buffer[40];
 extern volatile uint8_t new_data_flag;
 
 #define APOGEE_PRESSURE_WINDOW_SIZE 10
@@ -237,6 +237,17 @@ void Sensors_bypass(FlightComputer* flight_computer){ //niedokonczone
 //		flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
 //	}
 
+	if (__HAL_UART_GET_FLAG((flight_computer->huart), UART_FLAG_ORE) != RESET) {
+		    __HAL_UART_CLEAR_OREFLAG((flight_computer->huart)); // Wyczyść błąd Overrun
+		}
+
+
+	HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
+	while(new_data_flag == 0){
+		HAL_Delay(10);
+	}
+	HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
+
 	// Magnetometr
 	memcpy(&(flight_computer->imu.magnetometer.x_scaled), &uart_rx_buffer[0],  4);
 	memcpy(&(flight_computer->imu.magnetometer.y_scaled), &uart_rx_buffer[4],  4);
@@ -252,10 +263,40 @@ void Sensors_bypass(FlightComputer* flight_computer){ //niedokonczone
 	memcpy(&(flight_computer->imu.gyroscope.y_scaled),     &uart_rx_buffer[28], 4);
 	memcpy(&(flight_computer->imu.gyroscope.z_scaled),     &uart_rx_buffer[32], 4);
 
+	// Ciśnienie
+	memcpy(&(flight_computer->barothermo.pressure),     &uart_rx_buffer[36], 4);
+
 	// Obliczenie długości wektorów wypadkowych z otrzymanych wartości rzeczywistych
 	FlightComputer_calculateVectorLengths(flight_computer);
 
 	new_data_flag = 0;
+
+	/*uint8_t buffer[40];
+
+	HAL_UART_Receive(flight_computer->huart, buffer, 40, 2000);
+
+	// Magnetometr
+	memcpy(&(flight_computer->imu.magnetometer.x_scaled), &buffer[0],  4);
+	memcpy(&(flight_computer->imu.magnetometer.y_scaled), &buffer[4],  4);
+	memcpy(&(flight_computer->imu.magnetometer.z_scaled), &buffer[8],  4);
+
+	// Akcelerometr
+	memcpy(&(flight_computer->imu.accelerometer.x_scaled), &buffer[12], 4);
+	memcpy(&(flight_computer->imu.accelerometer.y_scaled), &buffer[16], 4);
+	memcpy(&(flight_computer->imu.accelerometer.z_scaled), &buffer[20], 4);
+
+	// Żyroskop
+	memcpy(&(flight_computer->imu.gyroscope.x_scaled),     &buffer[24], 4);
+	memcpy(&(flight_computer->imu.gyroscope.y_scaled),     &buffer[28], 4);
+	memcpy(&(flight_computer->imu.gyroscope.z_scaled),     &buffer[32], 4);
+
+	// Ciśnienie
+	memcpy(&(flight_computer->barothermo.pressure),     &buffer[36], 4);
+
+	// Obliczenie długości wektorów wypadkowych z otrzymanych wartości rzeczywistych
+	FlightComputer_calculateVectorLengths(flight_computer);
+
+	new_data_flag = 0;*/
 }
 
 float BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine){
@@ -345,9 +386,9 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 
 	// TELEMETRIA
 	flight_computer->telemetry_frame[0] = 0x24; // $
-	flight_computer->telemetry_frame[59] = 0x0A; // \n
-	flight_computer->telemetry_frame[60] = 0x0D; // \r
-	flight_computer->telemetry_frame[61] = 0x00; // \0
+	flight_computer->telemetry_frame[47] = 0x0A; // \n
+	flight_computer->telemetry_frame[48] = 0x0D; // \r
+	flight_computer->telemetry_frame[49] = 0x00; // \0
 
 	//Inicjalizacja BMP280
 	uint8_t settings = 0x08;
@@ -501,17 +542,20 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			if (flight_computer->imu.accelerometer.acc_total > 4*GRAVITY_EARTH) return STATE_POWERED_ASCENT;
 			break;
 		case STATE_POWERED_ASCENT:
-			if (now - flight_computer->state_change_timestamp > MOTOR_BURN_TIME_MS) return STATE_UNPOWERED_ASCENT;
+			//if (now - flight_computer->state_change_timestamp > MOTOR_BURN_TIME_MS) return STATE_UNPOWERED_ASCENT;
 			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) return STATE_UNPOWERED_ASCENT;
 			break;
 		case STATE_UNPOWERED_ASCENT: {
 			// pressure stored in barothermo.pressure
 			float pressure = flight_computer->barothermo.pressure;
 			float pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
-			if (flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
+			if (flight_computer->barothermo.apogee_pressure_window_index == 0 && flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
+				flight_computer->parachuteCnt = 20;
 				return STATE_DESCENT;
 			}
-			flight_computer->barothermo.prev_pressure = pressure_average;
+			if(flight_computer->barothermo.apogee_pressure_window_index == 0){
+				flight_computer->barothermo.prev_pressure = pressure_average;
+			}
 			break;
 		}
 		case STATE_DESCENT:
@@ -584,7 +628,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
 
 	// debug - frames counting
-	flight_computer->telemetry_frame[45]++;
+	//flight_computer->telemetry_frame[45]++;
 
 	// Read sensors and update telemetry bytes
 	if(MODE == 0){
@@ -597,16 +641,19 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	uint16_t adcValue;
 	adcValue = (uint16_t)HAL_ADC_GetValue(flight_computer->hadc);
 	HAL_ADC_Start(flight_computer->hadc);
-	flight_computer->telemetry_frame[54] = (uint8_t)(adcValue >> 8);
-	flight_computer->telemetry_frame[55] = (uint8_t)adcValue;
+	//dodać funkcję przeliczającą
+	flight_computer->telemetry_frame[44] = (uint8_t)(adcValue >> 8);
+	flight_computer->telemetry_frame[45] = (uint8_t)adcValue;
 
 	// Parachute output handling (legacy behaviour)
 	if (flight_computer->parachuteCnt > 0) {
 		flight_computer->parachuteCnt -= 1;
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
 		//flight_computer->telemetry_frame[53] = 1;
 	} else {
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
 		//flight_computer->telemetry_frame[53] = 0;
 	}
 
@@ -620,7 +667,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 //	flight_computer->telemetry_frame[55] = (uint8_t)(batt & 0xFF);
 
 	// RSSI
-	flight_computer->telemetry_frame[56] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
+	flight_computer->telemetry_frame[46] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
 
 	//state actualization
 	flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
@@ -636,6 +683,10 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	if(time_diff < 1){
 		time_diff = 1;
 	}
-	HAL_Delay(time_diff);
 
+	if(MODE == 0){
+		HAL_Delay(time_diff);
+	}else{
+		HAL_Delay(10);
+	}
 }
