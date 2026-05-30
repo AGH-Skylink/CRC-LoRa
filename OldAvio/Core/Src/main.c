@@ -503,7 +503,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, BUZZ_Pin|led_parachute_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, BUZZ_Pin|led_parachute_Pin|reco_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, Camera_Pin|LED_R_Pin|LED_G_Pin|LED_B_Pin
@@ -512,8 +512,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_Lora_GPIO_Port, CS_Lora_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pins : BUZZ_Pin CS_Lora_Pin led_parachute_Pin */
-  GPIO_InitStruct.Pin = BUZZ_Pin|CS_Lora_Pin|led_parachute_Pin;
+  /*Configure GPIO pins : BUZZ_Pin CS_Lora_Pin led_parachute_Pin reco_2_Pin */
+  GPIO_InitStruct.Pin = BUZZ_Pin|CS_Lora_Pin|led_parachute_Pin|reco_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

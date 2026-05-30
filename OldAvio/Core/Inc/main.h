@@ -83,6 +83,8 @@ void Error_Handler(void);
 #define CS_Lora_GPIO_Port GPIOA
 #define led_parachute_Pin GPIO_PIN_11
 #define led_parachute_GPIO_Port GPIOA
+#define reco_2_Pin GPIO_PIN_12
+#define reco_2_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
