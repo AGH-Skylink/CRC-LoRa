@@ -142,12 +142,12 @@ int main(void)
   //HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
   //HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
   //HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
-  HAL_Delay(2000);
-  FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1, &huart2);
+  //HAL_Delay(2000);
+  //FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1, &huart2);
   //HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
   //HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
   //HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
-  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+  //HAL_UART_Transmit(&huart1, &isSend, 1, 100);
   /*for(int i=0;i<1000;i++){
 	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
 	  HAL_Delay(100);
@@ -156,11 +156,11 @@ int main(void)
   
 //  GPS_Init(&huart2, &huart1);
 
-  /*uint8_t settings = 0x08;
+  uint8_t settings = 0x08;
   HAL_I2C_Mem_Write(&hi2c1, 0x53 << 1, 0x2D, 1, &settings, 1, 100);
 
   uint8_t config_to_write = 0x0B; // Zakres +/- 16g
-  HAL_I2C_Mem_Write(&hi2c1, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);*/
+  HAL_I2C_Mem_Write(&hi2c1, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
 
   /* USER CODE END 2 */
 
@@ -183,16 +183,13 @@ int main(void)
 
     //FlightComputer_loop(&flight_computer);
 
-	 /* uint8_t read_data[6];
-	  HAL_I2C_Mem_Read(&hi2c1, 0x53 << 1, 0x32, 1, read_data, 6, 100);
+	  uint8_t read_data[6];
+	  /*HAL_I2C_Mem_Read(&hi2c1, 0x53 << 1, 0x32, 1, read_data, 6, 100);
 
 	  int16_t x = (int16_t)(read_data[1] << 8 | read_data[0]);
 	  int16_t y = (int16_t)(read_data[3] << 8 | read_data[2]);
-	  int16_t z = (int16_t)(read_data[5] << 8 | read_data[4]);
+	  int16_t z = (int16_t)(read_data[5] << 8 | read_data[4]);*/
 	  HAL_UART_Transmit(&huart1, read_data, 6, 100);
-	  HAL_Delay(1000);*/
-
-	  //HAL_Toggle_Pin(LED_R_GPIO_Port, LED_R_Pin)
 	  HAL_Delay(1000);
 
 //	  GPS_Task();
