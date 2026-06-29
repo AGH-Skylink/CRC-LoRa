@@ -8,11 +8,7 @@
 
 #include <math.h>
 #include "FlightComputer.h"
-#include "pid.h"
 #include "gps.h"
-//#include "servos.h"
-//#include "power.h"
-
 #define ADXL345_SCALE_FACTOR  0.0039f      // 3.9 mg / LSB
 #define GRAVITY_EARTH         9.80665f     // m/s^2
 #define MPU_GYRO_SCALE_2000  16.4f
@@ -33,11 +29,6 @@ typedef enum {
 	STATE_LANDED = 4,
 	STATE_ABORT = 5
 } StateName;
-
-static PID_HandleTypedef pidX;
-static PID_HandleTypedef pidZ;
-static double angleX = 0.0;
-static double angleZ = 0.0;
 
 extern uint8_t uart_rx_buffer[40];
 extern volatile uint8_t new_data_flag;
@@ -72,9 +63,6 @@ void FlightComputer_scaleAccelerometer(FlightComputer* flight_computer) {
     flight_computer->imu.accelerometer.x_scaled = (float)flight_computer->imu.accelerometer.x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.y_scaled = (float)flight_computer->imu.accelerometer.y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
     flight_computer->imu.accelerometer.z_scaled = (float)flight_computer->imu.accelerometer.z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH;
-    /*flight_computer->imu.accelerometer.x_biased = flight_computer->imu.accelerometer.x_scaled - flight_computer->imu.accelerometer.bias_x;
-    flight_computer->imu.accelerometer.y_biased = flight_computer->imu.accelerometer.y_scaled - flight_computer->imu.accelerometer.bias_y;
-    flight_computer->imu.accelerometer.z_biased = flight_computer->imu.accelerometer.z_scaled - flight_computer->imu.accelerometer.bias_z;*/
 }
 
 void FlightComputer_scaleGyroscope(FlightComputer* flight_computer) {
@@ -90,29 +78,6 @@ void FlightComputer_scaleMagnetometer(FlightComputer* flight_computer) {
     flight_computer->imu.magnetometer.y_scaled  = ((float)flight_computer->imu.magnetometer.y / HMC5883L_SCALE_XY) * GAUSS_TO_UT;
     flight_computer->imu.magnetometer.z_scaled  = ((float)flight_computer->imu.magnetometer.z / HMC5883L_SCALE_Z) * GAUSS_TO_UT;
 }
-
-/*void calculateAccelerometerBias(FlightComputer* flight_computer){
-	float x_sum, y_sum, z_sum;
-	int16_t x, y, z;
-	uint8_t read_data[6];
-
-	for(int i=0; i<ACC_CALIBRATION_SAMPLES; i++){
-		if (HAL_I2C_Mem_Read(flight_computer->hi2c, 0x53 << 1, 0x32, 1, read_data, 6, 100) == HAL_OK) {
-			x = (int16_t)(read_data[1] << 8 | read_data[0]);
-			y = (int16_t)(read_data[3] << 8 | read_data[2]);
-			z = (int16_t)(read_data[5] << 8 | read_data[4]);
-			x_sum = x_sum + ((float)x * ADXL345_SCALE_FACTOR * GRAVITY_EARTH);
-			y_sum = y_sum + ((float)y * ADXL345_SCALE_FACTOR * GRAVITY_EARTH);
-			z_sum = z_sum + ((float)z * ADXL345_SCALE_FACTOR * GRAVITY_EARTH);
-		}else{
-			i = i-1;
-		}
-		HAL_Delay(50);
-	}
-	flight_computer->imu.accelerometer.bias_x = (float)(x_sum / ACC_CALIBRATION_SAMPLES);
-	flight_computer->imu.accelerometer.bias_y = (float)(y_sum / ACC_CALIBRATION_SAMPLES);
-	flight_computer->imu.accelerometer.bias_z = (float)(z_sum / ACC_CALIBRATION_SAMPLES);
-}*/
 
 void calculatePressureReference(FlightComputer* flight_computer){
 	float pressure;
@@ -216,27 +181,7 @@ void Sensors_read(FlightComputer* flight_computer){
 
 }
 
-void Sensors_bypass(FlightComputer* flight_computer){ //niedokonczone
-
-//  WARTOSCI SUROWE
-//	// Magnetometer
-//	flight_computer->imu.magnetometer.x = (int16_t)(uart_rx_buffer[0] << 8 | uart_rx_buffer[1]);
-//	flight_computer->imu.magnetometer.y = (int16_t)(uart_rx_buffer[2] << 8 | uart_rx_buffer[3]);
-//	flight_computer->imu.magnetometer.z = (int16_t)(uart_rx_buffer[4] << 8 | uart_rx_buffer[5]);
-//
-//	// ADXL345 accelerometer
-//	flight_computer->imu.accelerometer.x = (int16_t)(uart_rx_buffer[6] << 8 | uart_rx_buffer[7]);
-//	flight_computer->imu.accelerometer.y = (int16_t)(uart_rx_buffer[8] << 8 | uart_rx_buffer[9]);
-//	flight_computer->imu.accelerometer.z = (int16_t)(uart_rx_buffer[10] << 8 | uart_rx_buffer[11]);
-//
-//	// MPU/gyro
-//	flight_computer->imu.gyroscope.x = (int16_t)(uart_rx_buffer[12] << 8 | uart_rx_buffer[13]);
-//	flight_computer->imu.gyroscope.y = (int16_t)(uart_rx_buffer[14] << 8 | uart_rx_buffer[15]);
-//	flight_computer->imu.gyroscope.z = (int16_t)(uart_rx_buffer[16] << 8 | uart_rx_buffer[17]);
-//
-//	for(int i=0; i<18; ++i){
-//		flight_computer->telemetry_frame[i + 11] = uart_rx_buffer[i];
-//	}
+void Sensors_bypass(FlightComputer* flight_computer){
 
 	if (__HAL_UART_GET_FLAG((flight_computer->huart), UART_FLAG_ORE) != RESET) {
 		    __HAL_UART_CLEAR_OREFLAG((flight_computer->huart)); // Wyczyść błąd Overrun
@@ -449,15 +394,9 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	uint8_t mag_mode = 0x00; // Ustawienie trybu ciągłego pomiaru (rejestr Mode 0x02 -> wartość 0x00)
 	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x1E << 1, 0x02, 1, &mag_mode, 1, 100);
 
-
     //ADC
     flight_computer->hadc = hadc;
     HAL_ADC_Start(flight_computer->hadc);
-
-	// Initialize servos and PID controllers (conservative defaults)
-//	Servos_Init();
-	PID_Init(&pidX, &angleX);
-	PID_Init(&pidZ, &angleZ);
 
 	// start in WAITING state
 	flight_computer->state = STATE_WAITING;
@@ -483,38 +422,19 @@ void StateMachine_idle(FlightComputer* flight_computer){
 }
 
 void StateMachine_launch(FlightComputer* flight_computer){
-	// TVC routine: compute PID corrections and write servo angles
-	const double GEAR_RATIO = 4.0;
-	const double SERVO_X_HOME = 81.0;
-	const double SERVO_Z_HOME = 84.0;
-
-	double cx = PID_Compute(&pidX);
-	double cz = PID_Compute(&pidZ);
-//	Servos_SetAngleX(SERVO_X_HOME - (cx * GEAR_RATIO));
-//	Servos_SetAngleZ(SERVO_Z_HOME + (cz * GEAR_RATIO));
-}
-
-void StateMachine_ascent(FlightComputer* flight_computer){
-	// Unpowered coast: disable servos to save power
-//	Servos_Detach();
 	(void)flight_computer;
 }
 
-/*void StateMachine_apogee(FlightComputer* flight_computer){
-	// Placeholder - treat as immediate transition to descent
-	flight_computer->state = STATE_DESCENT;
-}*/
+void StateMachine_ascent(FlightComputer* flight_computer){
+	(void)flight_computer;
+}
 
 void StateMachine_descent(FlightComputer* flight_computer){
-	// per-state actions (none for now)
 	(void)flight_computer;
 }
 
 void StateMachine_landing(FlightComputer* flight_computer){
-	// Finalize: stop recording/telemetry if implemented and power down
-//	Servos_Detach();
-	// Optionally power down the system
-	(void)flight_computer; // leave power decision to main
+	(void)flight_computer;
 }
 
 void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state) {
@@ -555,7 +475,6 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			float pressure = flight_computer->barothermo.pressure;
 			float pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
 			if (flight_computer->barothermo.apogee_pressure_window_index == 0 && flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
-				//flight_computer->parachuteCnt = 20;
 				return STATE_DESCENT;
 			}
 			if(flight_computer->barothermo.apogee_pressure_window_index == 0){
@@ -607,7 +526,7 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 			case 7: // odpalenie spadochronu
 				if(flight_computer->parachute_fired == 0){
 					flight_computer->parachute_fired = 1;
-					flight_computer->parachuteCnt = 2000;
+					flight_computer->parachuteCnt = 30;
 				}
 				break;
 			case 8:
@@ -628,7 +547,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	FlightComputer_handleCommand(flight_computer);
 
 	// Transmit telemetry and restart RX
-	//int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
+	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
 
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
@@ -640,7 +559,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	// Read sensors and update telemetry bytes
 	if(MODE == 0){
-		//Sensors_read(flight_computer);
+		Sensors_read(flight_computer);
 	}else{
 		Sensors_bypass(flight_computer);
 	}
@@ -658,35 +577,24 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 		flight_computer->parachuteCnt -= 1;
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_SET);
-		//HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
-		//flight_computer->telemetry_frame[53] = 1;
 	} else {
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_RESET);
-		//HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
-		//flight_computer->telemetry_frame[53] = 0;
 	}
 
 	// State machine step
-	//FlightComputer_handleState(flight_computer, flight_computer->state);
-
-	// battery placeholder
-//	int16_t batt = (int16_t)(read_battery_voltage_adc() * 100.0f);
-//	if (batt < 0) batt = 0;
-//	flight_computer->telemetry_frame[54] = (uint8_t)((batt >> 8) & 0xFF);
-//	flight_computer->telemetry_frame[55] = (uint8_t)(batt & 0xFF);
+	FlightComputer_handleState(flight_computer, flight_computer->state);
 
 	// RSSI
 	flight_computer->telemetry_frame[46] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
 
 	//state actualization
-	//flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
+	flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
 	flight_computer->telemetry_frame[5] = flight_computer->state;
 
 	// check if the telemetry is send
-	//LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
+	LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
 	LoRa_startReceiving(&(flight_computer->LoRa));
-	//HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 
 	//GPS_Data_t gps = GPS_GetData();
 
@@ -698,15 +606,8 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	//memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
 
 	// a window for uplink communication - entire loop should last 50 ms
-	uint32_t time_diff = FRAME_TIME - 1 - (HAL_GetTick() - time_buff);
-	if(time_diff < 1){
-		time_diff = 1;
-	}
-
-	HAL_Delay(time_diff);
-
-	/*if(MODE == 0){
-	    uint32_t deadline = HAL_GetTick() + time_diff;
+	if(MODE == 0){
+	    uint32_t deadline = time_buff + FRAME_TIME - 1;
 	    while(HAL_GetTick() < deadline){
 	        GPS_Task();
 	    }
@@ -715,5 +616,5 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	    while(HAL_GetTick() < deadline){
 	        GPS_Task();
 	    }
-	}*/
+	}
 }

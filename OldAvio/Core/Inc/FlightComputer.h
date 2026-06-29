@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "LoRa.h"
-#include "bmp280.h"
 
 
 extern uint8_t uart_rx_buffer[40];
@@ -44,14 +43,6 @@ typedef struct{
 	float x_scaled;
 	float y_scaled;
 	float z_scaled;
-
-	/*float x_biased;
-	float y_biased;
-	float z_biased;
-
-	float bias_x;
-	float bias_y;
-	float bias_z;*/
 
 	float acc_total; // Całkowite przyspieszenie w m/s^2
 
