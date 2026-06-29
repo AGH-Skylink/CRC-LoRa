@@ -142,12 +142,16 @@ int main(void)
   //HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
   //HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
   //HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
-  HAL_Delay(2000);
+  HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_SET);
+  //HAL_GPIO_WritePin(led_state_GPIO_Port, led_parachute_Pin, GPIO_PIN_SET);
+  HAL_Delay(1000);
   FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1, &huart2);
+  HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_RESET);
+  //HAL_GPIO_WritePin(led_state_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
   //HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
   //HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
   //HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
-  HAL_UART_Transmit(&huart1, &isSend, 1, 100);
+  //HAL_UART_Transmit(&huart1, &isSend, 1, 100);
   /*for(int i=0;i<1000;i++){
 	  HAL_UART_Transmit(&huart1,&bytesRecv, 1, 100);
 	  HAL_Delay(100);
@@ -181,7 +185,7 @@ int main(void)
 //	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2500);
 //	  HAL_Delay(1000);
 
-    //FlightComputer_loop(&flight_computer);
+    FlightComputer_loop(&flight_computer);
 
 	 /* uint8_t read_data[6];
 	  HAL_I2C_Mem_Read(&hi2c1, 0x53 << 1, 0x32, 1, read_data, 6, 100);
@@ -193,7 +197,7 @@ int main(void)
 	  HAL_Delay(1000);*/
 
 	  //HAL_Toggle_Pin(LED_R_GPIO_Port, LED_R_Pin)
-	  HAL_Delay(1000);
+	  //HAL_Delay(1000);
 
 //	  GPS_Task();
 
@@ -521,36 +525,27 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, BUZZ_Pin|led_parachute_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, BUZZ_Pin|led_parachute_Pin|led_state_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, Camera_Pin|LED_R_Pin|LED_G_Pin|LED_B_Pin
-                          |LED_Y_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED_R_Pin|LED_G_Pin|LED_B_Pin|LED_Y_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_Lora_GPIO_Port, CS_Lora_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pins : BUZZ_Pin CS_Lora_Pin led_parachute_Pin */
-  GPIO_InitStruct.Pin = BUZZ_Pin|CS_Lora_Pin|led_parachute_Pin;
+  /*Configure GPIO pins : BUZZ_Pin CS_Lora_Pin led_parachute_Pin led_state_Pin */
+  GPIO_InitStruct.Pin = BUZZ_Pin|CS_Lora_Pin|led_parachute_Pin|led_state_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : Camera_Pin LED_R_Pin LED_G_Pin LED_B_Pin
-                           LED_Y_Pin */
-  GPIO_InitStruct.Pin = Camera_Pin|LED_R_Pin|LED_G_Pin|LED_B_Pin
-                          |LED_Y_Pin;
+  /*Configure GPIO pins : LED_R_Pin LED_G_Pin LED_B_Pin LED_Y_Pin */
+  GPIO_InitStruct.Pin = LED_R_Pin|LED_G_Pin|LED_B_Pin|LED_Y_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : Break_away_Pin */
-  GPIO_InitStruct.Pin = Break_away_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(Break_away_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB4 */
   GPIO_InitStruct.Pin = GPIO_PIN_4;

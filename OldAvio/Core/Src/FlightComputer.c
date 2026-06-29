@@ -607,7 +607,7 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 			case 7: // odpalenie spadochronu
 				if(flight_computer->parachute_fired == 0){
 					flight_computer->parachute_fired = 1;
-					flight_computer->parachuteCnt = 30;
+					flight_computer->parachuteCnt = 2000;
 				}
 				break;
 			case 8:
@@ -628,7 +628,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	FlightComputer_handleCommand(flight_computer);
 
 	// Transmit telemetry and restart RX
-	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
+	//int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
 
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
@@ -640,7 +640,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	// Read sensors and update telemetry bytes
 	if(MODE == 0){
-		Sensors_read(flight_computer);
+		//Sensors_read(flight_computer);
 	}else{
 		Sensors_bypass(flight_computer);
 	}
@@ -657,16 +657,18 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	if (flight_computer->parachuteCnt > 0) {
 		flight_computer->parachuteCnt -= 1;
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_SET);
+		//HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
 		//flight_computer->telemetry_frame[53] = 1;
 	} else {
 		HAL_GPIO_WritePin(led_parachute_GPIO_Port, led_parachute_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_RESET);
+		//HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
 		//flight_computer->telemetry_frame[53] = 0;
 	}
 
 	// State machine step
-	FlightComputer_handleState(flight_computer, flight_computer->state);
+	//FlightComputer_handleState(flight_computer, flight_computer->state);
 
 	// battery placeholder
 //	int16_t batt = (int16_t)(read_battery_voltage_adc() * 100.0f);
@@ -678,22 +680,22 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[46] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
 
 	//state actualization
-	flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
+	//flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
 	flight_computer->telemetry_frame[5] = flight_computer->state;
 
 	// check if the telemetry is send
-	LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
+	//LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
 	LoRa_startReceiving(&(flight_computer->LoRa));
 	//HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[6]), 1, 100);
 
-	GPS_Data_t gps = GPS_GetData();
+	//GPS_Data_t gps = GPS_GetData();
 
-	flight_computer->telemetry_frame[29] = gps.fix_quality;
-	flight_computer->telemetry_frame[30] = gps.satellites_tracked;
+	//flight_computer->telemetry_frame[29] = gps.fix_quality;
+	//flight_computer->telemetry_frame[30] = gps.satellites_tracked;
 
-	memcpy(&flight_computer->telemetry_frame[31], &gps.lat, 4);
-	memcpy(&flight_computer->telemetry_frame[35], &gps.lon, 4);
-	memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
+	//memcpy(&flight_computer->telemetry_frame[31], &gps.lat, 4);
+	//memcpy(&flight_computer->telemetry_frame[35], &gps.lon, 4);
+	//memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
 
 	// a window for uplink communication - entire loop should last 50 ms
 	uint32_t time_diff = FRAME_TIME - 1 - (HAL_GetTick() - time_buff);
@@ -701,7 +703,9 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 		time_diff = 1;
 	}
 
-	if(MODE == 0){
+	HAL_Delay(time_diff);
+
+	/*if(MODE == 0){
 	    uint32_t deadline = HAL_GetTick() + time_diff;
 	    while(HAL_GetTick() < deadline){
 	        GPS_Task();
@@ -711,5 +715,5 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	    while(HAL_GetTick() < deadline){
 	        GPS_Task();
 	    }
-	}
+	}*/
 }
