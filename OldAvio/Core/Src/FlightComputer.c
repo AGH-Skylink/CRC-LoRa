@@ -176,6 +176,12 @@ void Sensors_read(FlightComputer* flight_computer){
 	flight_computer->barothermo.temperature = t_fine / 5120.0f;
 	flight_computer->barothermo.pressure = BaroThermo_convertPressure(flight_computer, pressure_raw, t_fine);
 	BaroThermo_calculateAltitude(flight_computer);
+	int16_t alt_dm = (int16_t)(10 * flight_computer->barothermo.altitude);
+	flight_computer->telemetry_frame[7] = (uint8_t)(alt_dm >> 8);
+	flight_computer->telemetry_frame[8] = (uint8_t)(alt_dm & 0xFF);
+	int16_t temp_c_stC = (int16_t)(100 * flight_computer->barothermo.temperature);
+	flight_computer->telemetry_frame[9] = (uint8_t)(temp_c_stC >> 8);
+	flight_computer->telemetry_frame[10] = (uint8_t)(temp_c_stC & 0xFF);
 
 	FlightComputer_calculateVectorLengths(flight_computer);
 
@@ -216,33 +222,6 @@ void Sensors_bypass(FlightComputer* flight_computer){
 	FlightComputer_calculateVectorLengths(flight_computer);
 
 	new_data_flag = 0;
-
-	/*uint8_t buffer[40];
-
-	HAL_UART_Receive(flight_computer->huart, buffer, 40, 2000);
-
-	// Magnetometr
-	memcpy(&(flight_computer->imu.magnetometer.x_scaled), &buffer[0],  4);
-	memcpy(&(flight_computer->imu.magnetometer.y_scaled), &buffer[4],  4);
-	memcpy(&(flight_computer->imu.magnetometer.z_scaled), &buffer[8],  4);
-
-	// Akcelerometr
-	memcpy(&(flight_computer->imu.accelerometer.x_scaled), &buffer[12], 4);
-	memcpy(&(flight_computer->imu.accelerometer.y_scaled), &buffer[16], 4);
-	memcpy(&(flight_computer->imu.accelerometer.z_scaled), &buffer[20], 4);
-
-	// Żyroskop
-	memcpy(&(flight_computer->imu.gyroscope.x_scaled),     &buffer[24], 4);
-	memcpy(&(flight_computer->imu.gyroscope.y_scaled),     &buffer[28], 4);
-	memcpy(&(flight_computer->imu.gyroscope.z_scaled),     &buffer[32], 4);
-
-	// Ciśnienie
-	memcpy(&(flight_computer->barothermo.pressure),     &buffer[36], 4);
-
-	// Obliczenie długości wektorów wypadkowych z otrzymanych wartości rzeczywistych
-	FlightComputer_calculateVectorLengths(flight_computer);
-
-	new_data_flag = 0;*/
 }
 
 float BaroThermo_convertPressure(FlightComputer* flight_computer, int32_t pressure_raw, int32_t t_fine){
@@ -301,10 +280,6 @@ void BaroThermo_calculateAltitude(FlightComputer* flight_computer) {
 	} else {
 		flight_computer->barothermo.altitude = 0.0f;
 	}
-}
-
-void LoRa_send_telemetry(FlightComputer* flight_computer){
-
 }
 
 void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lora_hspi, GPIO_TypeDef *lora_port, uint16_t lora_pin, I2C_HandleTypeDef* hi2c, ADC_HandleTypeDef* hadc, UART_HandleTypeDef* huart, UART_HandleTypeDef* huart_gps){
@@ -415,8 +390,8 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 	GPS_Init(flight_computer->huart_gps);
 }
 
+// handlers should not change the state; they perform per-state actions
 void StateMachine_idle(FlightComputer* flight_computer){
-	// handlers should not change the state; they perform per-state actions
 	(void)flight_computer;
 
 }
@@ -467,7 +442,6 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			if (flight_computer->imu.accelerometer.acc_total > 4*GRAVITY_EARTH) return STATE_POWERED_ASCENT;
 			break;
 		case STATE_POWERED_ASCENT:
-			//if (now - flight_computer->state_change_timestamp > MOTOR_BURN_TIME_MS) return STATE_UNPOWERED_ASCENT;
 			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) return STATE_UNPOWERED_ASCENT;
 			break;
 		case STATE_UNPOWERED_ASCENT: {
@@ -546,16 +520,13 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	// Handle LoRa receive (commands)
 	FlightComputer_handleCommand(flight_computer);
 
-	// Transmit telemetry and restart RX
+	// Transmit telemetry
 	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
 
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
 	flight_computer->telemetry_frame[3] = (uint8_t)(time_buff >> 8);
 	flight_computer->telemetry_frame[4] = (uint8_t)(time_buff);
-
-	// debug - frames counting
-	//flight_computer->telemetry_frame[45]++;
 
 	// Read sensors and update telemetry bytes
 	if(MODE == 0){
@@ -598,12 +569,40 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	//GPS_Data_t gps = GPS_GetData();
 
-	//flight_computer->telemetry_frame[29] = gps.fix_quality;
-	//flight_computer->telemetry_frame[30] = gps.satellites_tracked;
+	//flight_computer->telemetry_frame[29] = (uint8_t)gps.fix_quality;
+	//flight_computer->telemetry_frame[30] = (uint8_t)gps.satellites_tracked;
 
 	//memcpy(&flight_computer->telemetry_frame[31], &gps.lat, 4);
 	//memcpy(&flight_computer->telemetry_frame[35], &gps.lon, 4);
 	//memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
+
+	//GPIO STATUS
+	uint8_t gpio_state = 0;
+	if(HAL_GPIO_ReadPin(led_parachute_GPIO_Port, led_parachute_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 128;
+	}
+	if(HAL_GPIO_ReadPin(led_state_GPIO_Port, led_state_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 64;
+	}
+	if(HAL_GPIO_ReadPin(LED_R_GPIO_Port, LED_R_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 32;
+	}
+	if(HAL_GPIO_ReadPin(LED_G_GPIO_Port, LED_G_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 16;
+	}
+	if(HAL_GPIO_ReadPin(LED_B_GPIO_Port, LED_G_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 8;
+	}
+	if(HAL_GPIO_ReadPin(LED_Y_GPIO_Port, LED_Y_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 4;
+	}
+	if(HAL_GPIO_ReadPin(BUZZ_GPIO_Port, BUZZ_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 2;
+	}
+	//if(HAL_GPIO_ReadPin(CAM_GPIO_Port, CAM_Pin) == GPIO_PIN_SET){
+	//	gpio_state = gpio_state + 1;
+	//}
+	flight_computer->telemetry_frame[43] = gpio_state;
 
 	// a window for uplink communication - entire loop should last 50 ms
 	if(MODE == 0){
