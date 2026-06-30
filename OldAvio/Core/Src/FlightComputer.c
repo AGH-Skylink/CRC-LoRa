@@ -359,6 +359,9 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     flight_computer->parachute_fired = 0;
     flight_computer->parachuteCnt = 0;
 
+    //breakaway wire logic
+    flight_computer->breakaway_wire_detached = 0;
+
 	// Zmiana zakresow IMU
 	uint8_t config_to_write = 0x0B; // Zakres +/- 16g
 	HAL_I2C_Mem_Write(flight_computer->hi2c, 0x53 << 1, 0x31, 1, &config_to_write, 1, 100);
@@ -558,6 +561,11 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	// RSSI
 	flight_computer->telemetry_frame[46] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
+
+	//breakaway wire check
+	if(HAL_GPIO_ReadPin(BREAKAWAY_GPIO_Port, BREAKAWAY_Pin) == GPIO_PIN_SET){
+		flight_computer->breakaway_wire_detached = 1;
+	}
 
 	//state actualization
 	flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);

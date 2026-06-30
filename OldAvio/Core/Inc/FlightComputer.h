@@ -135,6 +135,8 @@ typedef struct{
 	int parachuteCnt;
 	// flag to avoid second launch
 	uint8_t parachute_fired;
+	//breakaway wire flag
+	uint8_t breakaway_wire_detached;
 
 	// Telemetria
 	int32_t time;
