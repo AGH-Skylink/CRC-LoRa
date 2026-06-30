@@ -67,6 +67,10 @@ void Error_Handler(void);
 #define MISO_GPIO_Port GPIOA
 #define MOSI_Pin GPIO_PIN_7
 #define MOSI_GPIO_Port GPIOA
+#define BREAKAWAY_Pin GPIO_PIN_0
+#define BREAKAWAY_GPIO_Port GPIOB
+#define CAM_Pin GPIO_PIN_1
+#define CAM_GPIO_Port GPIOB
 #define LED_R_Pin GPIO_PIN_12
 #define LED_R_GPIO_Port GPIOB
 #define LED_G_Pin GPIO_PIN_13
