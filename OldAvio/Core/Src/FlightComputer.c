@@ -524,7 +524,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	FlightComputer_handleCommand(flight_computer);
 
 	// Transmit telemetry
-	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 62, 500);
+	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 50, 500);
 
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
@@ -607,9 +607,9 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	if(HAL_GPIO_ReadPin(BUZZ_GPIO_Port, BUZZ_Pin) == GPIO_PIN_SET){
 		gpio_state = gpio_state + 2;
 	}
-	//if(HAL_GPIO_ReadPin(CAM_GPIO_Port, CAM_Pin) == GPIO_PIN_SET){
-	//	gpio_state = gpio_state + 1;
-	//}
+	if(HAL_GPIO_ReadPin(CAM_GPIO_Port, CAM_Pin) == GPIO_PIN_SET){
+		gpio_state = gpio_state + 1;
+	}
 	flight_computer->telemetry_frame[43] = gpio_state;
 
 	// a window for uplink communication - entire loop should last 50 ms
