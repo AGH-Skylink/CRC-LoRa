@@ -148,10 +148,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+//  uint8_t val = 1;
+//  HAL_UART_Transmit(&huart1, &val, 1, 100);
+//  GPS_Init_debug(&huart2, &huart1);
   while (1)
   {
-
-    FlightComputer_loop(&flight_computer);
+//	  GPS_Task_debug();
+//	  HAL_UART_Transmit(&huart1, &val, 1, 100);
+	  FlightComputer_loop(&flight_computer);
 
     /* USER CODE END WHILE */
 

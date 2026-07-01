@@ -11,6 +11,7 @@
 #include "gps.h"
 #define ADXL345_SCALE_FACTOR  0.0039f      // 3.9 mg / LSB
 #define GRAVITY_EARTH         9.80665f     // m/s^2
+#define LAUNCH_DETECT_THRESHOLD_G   3.0f
 #define MPU_GYRO_SCALE_2000  16.4f
 
 // Współczynniki dla domyślnego zakresu +/- 1.3 Gauss
@@ -442,7 +443,8 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	switch (current) {
 		case STATE_WAITING:
 			if (flight_computer->last_cmd_rx == 8) return STATE_POWERED_ASCENT;
-			if (flight_computer->imu.accelerometer.acc_total > 4*GRAVITY_EARTH) return STATE_POWERED_ASCENT;
+			if (flight_computer->breakaway_wire_detached) return STATE_POWERED_ASCENT;
+			if (flight_computer->imu.accelerometer.acc_total > LAUNCH_DETECT_THRESHOLD_G * GRAVITY_EARTH) return STATE_POWERED_ASCENT;
 			break;
 		case STATE_POWERED_ASCENT:
 			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) return STATE_UNPOWERED_ASCENT;
@@ -563,8 +565,10 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[46] = (uint8_t)LoRa_getRSSI(&(flight_computer->LoRa));
 
 	//breakaway wire check
-	if(HAL_GPIO_ReadPin(BREAKAWAY_GPIO_Port, BREAKAWAY_Pin) == GPIO_PIN_SET){
-		flight_computer->breakaway_wire_detached = 1;
+	if (!flight_computer->breakaway_wire_detached) {
+	    if (HAL_GPIO_ReadPin(BREAKAWAY_GPIO_Port, BREAKAWAY_Pin) == GPIO_PIN_SET) {
+	        flight_computer->breakaway_wire_detached = 1;
+	    }
 	}
 
 	//state actualization
