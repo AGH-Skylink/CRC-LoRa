@@ -113,7 +113,7 @@ typedef struct{
 typedef struct{
 
 	//Status
-	int32_t start_time;
+	uint32_t start_time;
 	int8_t state;
 	int8_t last_cmd_rx;
 	uint32_t state_change_timestamp;

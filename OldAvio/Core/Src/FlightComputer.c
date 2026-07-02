@@ -388,7 +388,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 		flight_computer->barothermo.apogee_pressure_window[i] = 0;
 	}
 
-	// calculate acceleration bias
+	// calculate pressure reference
 	calculatePressureReference(flight_computer);
 
 	GPS_Init(flight_computer->huart_gps);
@@ -438,13 +438,25 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	uint32_t now = HAL_GetTick();
 	// tunable
 	const uint32_t MOTOR_BURN_TIME_MS = 5000;
+	const uint32_t MAX_ASCENT_TIME_MS = 11000;
 	const uint32_t MAX_DESCENT_MS = 300000;
 
 	switch (current) {
 		case STATE_WAITING:
-			if (flight_computer->last_cmd_rx == 8) return STATE_POWERED_ASCENT;
-			if (flight_computer->breakaway_wire_detached) return STATE_POWERED_ASCENT;
-			if (flight_computer->imu.accelerometer.acc_total > LAUNCH_DETECT_THRESHOLD_G * GRAVITY_EARTH) return STATE_POWERED_ASCENT;
+			if (flight_computer->armed == 1){
+				if (flight_computer->last_cmd_rx == 8){
+					flight_computer->start_time = now;
+					return STATE_POWERED_ASCENT;
+				}
+				if (flight_computer->breakaway_wire_detached){
+					flight_computer->start_time = now;
+					return STATE_POWERED_ASCENT;
+				}
+				if (flight_computer->imu.accelerometer.acc_total > LAUNCH_DETECT_THRESHOLD_G * GRAVITY_EARTH){
+					flight_computer->start_time = now;
+					return STATE_POWERED_ASCENT;
+				}
+			}
 			break;
 		case STATE_POWERED_ASCENT:
 			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) return STATE_UNPOWERED_ASCENT;
@@ -453,6 +465,8 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			// pressure stored in barothermo.pressure
 			float pressure = flight_computer->barothermo.pressure;
 			float pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
+			if (now - flight_computer->start_time > MAX_ASCENT_TIME_MS) return STATE_DESCENT;
+			if (flight_computer->imu.accelerometer.acc_total < 0.5 * GRAVITY_EARTH) return STATE_DESCENT;
 			if (flight_computer->barothermo.apogee_pressure_window_index == 0 && flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
 				return STATE_DESCENT;
 			}
@@ -508,7 +522,7 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 					flight_computer->parachuteCnt = 30;
 				}
 				break;
-			case 8:
+			case 8: // uruchamianie startu rakiety
 				break;
 			case 9:
 				break;
@@ -527,6 +541,9 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	// Transmit telemetry
 	int mode = LoRa_transmit_send(&(flight_computer->LoRa), &(flight_computer->telemetry_frame[0]), 50, 500);
+
+	// UART transmission - debug only
+	HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[0]), 50, 500);
 
 	flight_computer->telemetry_frame[1] = (uint8_t)(time_buff >> 24);
 	flight_computer->telemetry_frame[2] = (uint8_t)(time_buff >> 16);
@@ -579,14 +596,15 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
 	LoRa_startReceiving(&(flight_computer->LoRa));
 
-	//GPS_Data_t gps = GPS_GetData();
+	GPS_Data_t gps = GPS_GetData();
 
-	//flight_computer->telemetry_frame[29] = (uint8_t)gps.fix_quality;
-	//flight_computer->telemetry_frame[30] = (uint8_t)gps.satellites_tracked;
+	flight_computer->telemetry_frame[29] = (uint8_t)gps.fix_quality;
+	if(gps.fix_quality == 1) flight_computer->telemetry_frame[29] = 0xFF;
+	flight_computer->telemetry_frame[30] = (uint8_t)gps.satellites_tracked;
 
-	//memcpy(&flight_computer->telemetry_frame[31], &gps.lat, 4);
-	//memcpy(&flight_computer->telemetry_frame[35], &gps.lon, 4);
-	//memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
+	memcpy(&flight_computer->telemetry_frame[31], &gps.lat, 4);
+	memcpy(&flight_computer->telemetry_frame[35], &gps.lon, 4);
+	memcpy(&flight_computer->telemetry_frame[39], &gps.alt, 4);
 
 	//GPIO STATUS
 	uint8_t gpio_state = 0;
@@ -618,9 +636,10 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 
 	// a window for uplink communication - entire loop should last 50 ms
 	if(MODE == 0){
-	    uint32_t deadline = time_buff + FRAME_TIME - 1;
+	    uint32_t deadline = time_buff + FRAME_TIME;
 	    while(HAL_GetTick() < deadline){
 	        GPS_Task();
+	        //HAL_UART_Transmit(flight_computer->huart, &(flight_computer->telemetry_frame[0]), 2, 500);
 	    }
 	}else{
 	    uint32_t deadline = HAL_GetTick() + 10;
