@@ -443,11 +443,12 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 
 	switch (current) {
 		case STATE_WAITING:
+			if (flight_computer->last_cmd_rx == 8){
+				flight_computer->start_time = now;
+				HAL_GPIO_WritePin(CAM_GPIO_Port, CAM_Pin, GPIO_PIN_SET);
+				return STATE_POWERED_ASCENT;
+			}
 			if (flight_computer->armed == 1){
-				if (flight_computer->last_cmd_rx == 8){
-					flight_computer->start_time = now;
-					return STATE_POWERED_ASCENT;
-				}
 				if (flight_computer->breakaway_wire_detached){
 					flight_computer->start_time = now;
 					return STATE_POWERED_ASCENT;
@@ -476,7 +477,10 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 			break;
 		}
 		case STATE_DESCENT:
-			if (now - flight_computer->state_change_timestamp > MAX_DESCENT_MS) return STATE_LANDED;
+			if (now - flight_computer->state_change_timestamp > MAX_DESCENT_MS) {
+				HAL_GPIO_WritePin(CAM_GPIO_Port, CAM_Pin, GPIO_PIN_RESET);
+				return STATE_LANDED;
+			}
 			break;
 		case STATE_ABORT:
 			// remain until manual reset
@@ -593,7 +597,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	flight_computer->telemetry_frame[5] = flight_computer->state;
 
 	// check if the telemetry is send
-	LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
+	uint8_t tx_status = LoRa_transmit_check(&(flight_computer->LoRa), 500, mode);
 	LoRa_startReceiving(&(flight_computer->LoRa));
 
 	GPS_Data_t gps = GPS_GetData();
@@ -647,4 +651,6 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	        GPS_Task();
 	    }
 	}
+//	uint32_t deadline = time_buff + FRAME_TIME;
+//	while(HAL_GetTick() < deadline);
 }

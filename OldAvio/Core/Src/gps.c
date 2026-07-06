@@ -91,11 +91,12 @@ GPS_Data_t GPS_GetData(void)
 void GPS_Init(UART_HandleTypeDef *huart_gps)
 {
     _huart_gps = huart_gps;
+//    HAL_UART_Receive_IT(_huart_gps, &gps_char, 1);
 }
 
 void GPS_Task(void)
 {
-    if (HAL_UART_Receive(_huart_gps, &gps_char, 1, 0) != HAL_OK)
+    if (HAL_UART_Receive(_huart_gps, &gps_char, 1, 1) != HAL_OK)
         return;
 
     if (gps_char == '\n' || gps_idx >= MINMEA_MAX_SENTENCE_LENGTH - 1)
