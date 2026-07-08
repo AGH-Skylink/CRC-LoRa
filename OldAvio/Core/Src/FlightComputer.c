@@ -22,6 +22,8 @@
 #define LAUNCH_CONFIRM_SAMPLES   3   // liczba kolejnych cykli pętli powyżej progu
 #define BURNOUT_CONFIRM_SAMPLES  3
 
+#define ABSOLUTE_PARACHUTE_TIMEOUT_MS 15000
+
 #define FRAME_TIME 50
 
 // Local state enum (maps into flight_computer->state)
@@ -381,6 +383,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     HAL_ADC_Start(flight_computer->hadc);
 
 	// start in WAITING state
+    flight_computer->start_time = 0;
 	flight_computer->state = STATE_WAITING;
 	flight_computer->state_change_timestamp = HAL_GetTick();
 	flight_computer->launch_detect_counter = 0;
@@ -454,6 +457,10 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	const uint32_t MOTOR_BURN_TIME_MS = 5000;
 	const uint32_t MAX_ASCENT_TIME_MS = 11000;
 	const uint32_t MAX_DESCENT_MS = 300000;
+
+	if (flight_computer->parachute_fired == 0 && flight_computer->start_time != 0 && (now - flight_computer->start_time) > ABSOLUTE_PARACHUTE_TIMEOUT_MS) {
+		FlightComputer_fireParachute(flight_computer);
+	}
 
 	switch (current) {
 		case STATE_WAITING:
