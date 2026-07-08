@@ -19,6 +19,11 @@
 #define HMC5883L_SCALE_Z    980.0f
 #define GAUSS_TO_UT         100.0f  // 1 Gauss = 100 uT
 
+#define LAUNCH_CONFIRM_SAMPLES   3   // liczba kolejnych cykli pętli powyżej progu
+#define BURNOUT_CONFIRM_SAMPLES  3
+
+#define ABSOLUTE_PARACHUTE_TIMEOUT_MS 15000
+
 #define FRAME_TIME 50
 
 // Local state enum (maps into flight_computer->state)
@@ -378,8 +383,11 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     HAL_ADC_Start(flight_computer->hadc);
 
 	// start in WAITING state
+    flight_computer->start_time = 0;
 	flight_computer->state = STATE_WAITING;
 	flight_computer->state_change_timestamp = HAL_GetTick();
+	flight_computer->launch_detect_counter = 0;
+	flight_computer->burnout_detect_counter = 0;
 	flight_computer->barothermo.prev_pressure = 0;
 	flight_computer->barothermo.apogee_pressure_window_index = 0;
 	flight_computer->barothermo.apogee_pressure_window_count = 0;
@@ -419,6 +427,8 @@ void StateMachine_landing(FlightComputer* flight_computer){
 void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state) {
 	flight_computer->state = new_state;
 	flight_computer->state_change_timestamp = HAL_GetTick();
+	flight_computer->launch_detect_counter = 0;
+	flight_computer->burnout_detect_counter = 0;
 }
 
 void FlightComputer_handleState(FlightComputer* flight_computer, int8_t state) {
@@ -433,6 +443,13 @@ void FlightComputer_handleState(FlightComputer* flight_computer, int8_t state) {
 	}
 }
 
+static void FlightComputer_fireParachute(FlightComputer* flight_computer) {
+	if (flight_computer->parachute_fired == 0) {
+		flight_computer->parachute_fired = 1;
+		flight_computer->parachuteCnt = 30;
+	}
+}
+
 int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	int8_t current = flight_computer->state;
 	uint32_t now = HAL_GetTick();
@@ -440,6 +457,10 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	const uint32_t MOTOR_BURN_TIME_MS = 5000;
 	const uint32_t MAX_ASCENT_TIME_MS = 11000;
 	const uint32_t MAX_DESCENT_MS = 300000;
+
+	if (flight_computer->parachute_fired == 0 && flight_computer->start_time != 0 && (now - flight_computer->start_time) > ABSOLUTE_PARACHUTE_TIMEOUT_MS) {
+		FlightComputer_fireParachute(flight_computer);
+	}
 
 	switch (current) {
 		case STATE_WAITING:
@@ -454,24 +475,45 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 					return STATE_POWERED_ASCENT;
 				}
 				if (flight_computer->imu.accelerometer.acc_total > LAUNCH_DETECT_THRESHOLD_G * GRAVITY_EARTH){
-					flight_computer->start_time = now;
-					return STATE_POWERED_ASCENT;
+					flight_computer->launch_detect_counter++;
+					if (flight_computer->launch_detect_counter >= LAUNCH_CONFIRM_SAMPLES) {
+						flight_computer->start_time = now;
+						return STATE_POWERED_ASCENT;
+					}
+				} else {
+					flight_computer->launch_detect_counter = 0; // przerwana ciągłość - reset
 				}
 			}
 			break;
 		case STATE_POWERED_ASCENT:
-			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) return STATE_UNPOWERED_ASCENT;
+			if (flight_computer->imu.accelerometer.acc_total < 2*GRAVITY_EARTH) {
+				flight_computer->burnout_detect_counter++;
+				if (flight_computer->burnout_detect_counter >= BURNOUT_CONFIRM_SAMPLES) {
+					return STATE_UNPOWERED_ASCENT;
+				}
+			} else {
+				flight_computer->burnout_detect_counter = 0;
+			}
 			break;
 		case STATE_UNPOWERED_ASCENT: {
-			// pressure stored in barothermo.pressure
 			float pressure = flight_computer->barothermo.pressure;
 			float pressure_average = FlightComputer_updateApogeePressureAverage(flight_computer, pressure);
-			if (now - flight_computer->start_time > MAX_ASCENT_TIME_MS) return STATE_DESCENT;
-			if (flight_computer->imu.accelerometer.acc_total < 0.5 * GRAVITY_EARTH) return STATE_DESCENT;
-			if (flight_computer->barothermo.apogee_pressure_window_index == 0 && flight_computer->barothermo.prev_pressure != 0 && pressure_average > flight_computer->barothermo.prev_pressure) {
+
+			if (now - flight_computer->start_time > MAX_ASCENT_TIME_MS) {
+				FlightComputer_fireParachute(flight_computer); // timeout - zakładamy apogeum
 				return STATE_DESCENT;
 			}
-			if(flight_computer->barothermo.apogee_pressure_window_index == 0){
+			if (flight_computer->imu.accelerometer.acc_total < 0.5f * GRAVITY_EARTH) {
+				FlightComputer_fireParachute(flight_computer); // swobodny spadek - jesteśmy po apogeum
+				return STATE_DESCENT;
+			}
+			if (flight_computer->barothermo.apogee_pressure_window_index == 0 &&
+			    flight_computer->barothermo.prev_pressure != 0 &&
+			    pressure_average > flight_computer->barothermo.prev_pressure) {
+				FlightComputer_fireParachute(flight_computer); // ciśnienie rośnie = wysokość spada
+				return STATE_DESCENT;
+			}
+			if (flight_computer->barothermo.apogee_pressure_window_index == 0) {
 				flight_computer->barothermo.prev_pressure = pressure_average;
 			}
 			break;
@@ -521,10 +563,7 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 				flight_computer->camera = 0;
 				break;
 			case 7: // odpalenie spadochronu
-				if(flight_computer->parachute_fired == 0){
-					flight_computer->parachute_fired = 1;
-					flight_computer->parachuteCnt = 30;
-				}
+				FlightComputer_fireParachute(flight_computer);
 				break;
 			case 8: // uruchamianie startu rakiety
 				break;
@@ -593,7 +632,12 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	}
 
 	//state actualization
-	flight_computer->state = FlightComputer_evaluateTransitions(flight_computer);
+	int8_t new_state = FlightComputer_evaluateTransitions(flight_computer);
+	if (new_state != flight_computer->state) {
+	    FlightComputer_setState(flight_computer, new_state);
+	} else {
+	    flight_computer->state = new_state; // bez zmiany - nic więcej nie rób
+	}
 	flight_computer->telemetry_frame[5] = flight_computer->state;
 
 	// check if the telemetry is send
@@ -624,7 +668,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	if(HAL_GPIO_ReadPin(LED_G_GPIO_Port, LED_G_Pin) == GPIO_PIN_SET){
 		gpio_state = gpio_state + 16;
 	}
-	if(HAL_GPIO_ReadPin(LED_B_GPIO_Port, LED_G_Pin) == GPIO_PIN_SET){
+	if(HAL_GPIO_ReadPin(LED_B_GPIO_Port, LED_B_Pin) == GPIO_PIN_SET){
 		gpio_state = gpio_state + 8;
 	}
 	if(HAL_GPIO_ReadPin(LED_Y_GPIO_Port, LED_Y_Pin) == GPIO_PIN_SET){
@@ -651,6 +695,4 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	        GPS_Task();
 	    }
 	}
-//	uint32_t deadline = time_buff + FRAME_TIME;
-//	while(HAL_GetTick() < deadline);
 }

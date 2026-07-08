@@ -120,6 +120,10 @@ typedef struct{
 	int8_t armed;
 	int8_t camera;
 
+	// liczniki potwierdzające (debounce) przejść w maszynie stanów
+	uint8_t launch_detect_counter;
+	uint8_t burnout_detect_counter;
+
 	// Moduły
 	LoRa LoRa;
 	IMU imu;
