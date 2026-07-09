@@ -124,6 +124,14 @@ typedef struct{
 	uint8_t launch_detect_counter;
 	uint8_t burnout_detect_counter;
 
+	float prev_altitude_for_velocity;
+	uint32_t prev_altitude_timestamp;
+	float vertical_velocity;        // m/s, dodatnia = wznoszenie, ujemna = opadanie
+	uint8_t landed_detect_counter;
+
+	uint8_t freefall_detect_counter;
+	uint8_t apogee_pressure_rise_counter;
+
 	// Moduły
 	LoRa LoRa;
 	IMU imu;
@@ -141,6 +149,7 @@ typedef struct{
 	uint8_t parachute_fired;
 	//breakaway wire flag
 	uint8_t breakaway_wire_detached;
+	uint8_t breakaway_detect_counter;
 
 	// Telemetria
 	int32_t time;

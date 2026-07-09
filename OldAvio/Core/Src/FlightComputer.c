@@ -21,8 +21,16 @@
 
 #define LAUNCH_CONFIRM_SAMPLES   3   // liczba kolejnych cykli pętli powyżej progu
 #define BURNOUT_CONFIRM_SAMPLES  3
+#define BREAKAWAY_CONFIRM_SAMPLES 3
+#define FREEFALL_CONFIRM_SAMPLES 3
+#define APOGEE_CONFIRM_WINDOWS 2
 
-#define ABSOLUTE_PARACHUTE_TIMEOUT_MS 15000
+#define LANDING_VELOCITY_THRESHOLD_MS   5.0f   // m/s - poniżej tego uznajemy "prawie stoi"
+#define LANDING_CONFIRM_SAMPLES         10
+#define MIN_DESCENT_TIME_BEFORE_LANDING_MS  5000
+
+#define ABSOLUTE_PARACHUTE_TIMEOUT_MS 11000
+#define MIN_TIME_BEFORE_PARACHUTE_MS 2000
 
 #define FRAME_TIME 50
 
@@ -47,6 +55,21 @@ extern volatile uint8_t new_data_flag;
 #define MODE 0
 
 #define PRESSURE_SEA_LEVEL 101325.0f
+
+static void FlightComputer_updateVerticalVelocity(FlightComputer* flight_computer, uint32_t now) {
+	float current_altitude = flight_computer->barothermo.altitude;
+
+	if (flight_computer->prev_altitude_timestamp != 0) {
+		float dt_s = (float)(now - flight_computer->prev_altitude_timestamp) / 1000.0f;
+		if (dt_s > 0.0f) {
+			flight_computer->vertical_velocity =
+				(current_altitude - flight_computer->prev_altitude_for_velocity) / dt_s;
+		}
+	}
+
+	flight_computer->prev_altitude_for_velocity = current_altitude;
+	flight_computer->prev_altitude_timestamp = now;
+}
 
 static float FlightComputer_updateApogeePressureAverage(FlightComputer* flight_computer, float pressure) {
 	uint8_t index = flight_computer->barothermo.apogee_pressure_window_index;
@@ -367,6 +390,12 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
 
     //breakaway wire logic
     flight_computer->breakaway_wire_detached = 0;
+    flight_computer->breakaway_detect_counter = 0;
+
+    flight_computer->prev_altitude_for_velocity = 0;
+    flight_computer->prev_altitude_timestamp = 0;
+    flight_computer->vertical_velocity = 0;
+    flight_computer->landed_detect_counter = 0;
 
 	// Zmiana zakresow IMU
 	uint8_t config_to_write = 0x0B; // Zakres +/- 16g
@@ -421,7 +450,7 @@ void StateMachine_descent(FlightComputer* flight_computer){
 }
 
 void StateMachine_landing(FlightComputer* flight_computer){
-	(void)flight_computer;
+	HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
 }
 
 void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state) {
@@ -429,6 +458,13 @@ void FlightComputer_setState(FlightComputer* flight_computer, int8_t new_state) 
 	flight_computer->state_change_timestamp = HAL_GetTick();
 	flight_computer->launch_detect_counter = 0;
 	flight_computer->burnout_detect_counter = 0;
+	flight_computer->landed_detect_counter = 0;
+	flight_computer->freefall_detect_counter = 0;
+	flight_computer->apogee_pressure_rise_counter = 0;
+
+	if (new_state != STATE_LANDED) {
+		HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
+	}
 }
 
 void FlightComputer_handleState(FlightComputer* flight_computer, int8_t state) {
@@ -443,11 +479,29 @@ void FlightComputer_handleState(FlightComputer* flight_computer, int8_t state) {
 	}
 }
 
-static void FlightComputer_fireParachute(FlightComputer* flight_computer) {
-	if (flight_computer->parachute_fired == 0) {
-		flight_computer->parachute_fired = 1;
-		flight_computer->parachuteCnt = 30;
+static uint8_t FlightComputer_parachuteTimingSafe(FlightComputer* flight_computer, uint32_t now) {
+	// Brak startu = brak sensu odpalania
+	if (flight_computer->start_time == 0) {
+		return 0;
 	}
+	// Za wcześnie po starcie = niebezpieczna prędkość/ciąg silnika
+	if ((now - flight_computer->start_time) < MIN_TIME_BEFORE_PARACHUTE_MS) {
+		return 0;
+	}
+	return 1;
+}
+
+static void FlightComputer_fireParachute(FlightComputer* flight_computer) {
+	uint32_t now = HAL_GetTick();
+	if (flight_computer->parachute_fired == 0 && FlightComputer_parachuteTimingSafe(flight_computer, now)) {
+		flight_computer->parachute_fired = 1;
+		flight_computer->parachuteCnt = 80;
+	}
+}
+
+static void FlightComputer_fireParachuteManual(FlightComputer* flight_computer) {
+	flight_computer->parachute_fired = 1;
+	flight_computer->parachuteCnt = 80;
 }
 
 int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
@@ -456,7 +510,7 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 	// tunable
 	const uint32_t MOTOR_BURN_TIME_MS = 5000;
 	const uint32_t MAX_ASCENT_TIME_MS = 11000;
-	const uint32_t MAX_DESCENT_MS = 300000;
+	const uint32_t MAX_DESCENT_MS = 60000;
 
 	if (flight_computer->parachute_fired == 0 && flight_computer->start_time != 0 && (now - flight_computer->start_time) > ABSOLUTE_PARACHUTE_TIMEOUT_MS) {
 		FlightComputer_fireParachute(flight_computer);
@@ -504,26 +558,53 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 				return STATE_DESCENT;
 			}
 			if (flight_computer->imu.accelerometer.acc_total < 0.5f * GRAVITY_EARTH) {
-				FlightComputer_fireParachute(flight_computer); // swobodny spadek - jesteśmy po apogeum
-				return STATE_DESCENT;
+			    flight_computer->freefall_detect_counter++;
+			    if (flight_computer->freefall_detect_counter >= FREEFALL_CONFIRM_SAMPLES) {
+			        FlightComputer_fireParachute(flight_computer);
+			        return STATE_DESCENT;
+			    }
+			} else {
+			    flight_computer->freefall_detect_counter = 0;
 			}
 			if (flight_computer->barothermo.apogee_pressure_window_index == 0 &&
 			    flight_computer->barothermo.prev_pressure != 0 &&
 			    pressure_average > flight_computer->barothermo.prev_pressure) {
-				FlightComputer_fireParachute(flight_computer); // ciśnienie rośnie = wysokość spada
-				return STATE_DESCENT;
+			    flight_computer->apogee_pressure_rise_counter++;
+			    if (flight_computer->apogee_pressure_rise_counter >= APOGEE_CONFIRM_WINDOWS) {
+			        FlightComputer_fireParachute(flight_computer);
+			        return STATE_DESCENT;
+			    }
+			} else if (flight_computer->barothermo.apogee_pressure_window_index == 0) {
+			    flight_computer->apogee_pressure_rise_counter = 0;
 			}
 			if (flight_computer->barothermo.apogee_pressure_window_index == 0) {
 				flight_computer->barothermo.prev_pressure = pressure_average;
 			}
 			break;
 		}
-		case STATE_DESCENT:
-			if (now - flight_computer->state_change_timestamp > MAX_DESCENT_MS) {
+		case STATE_DESCENT: {
+			uint32_t time_in_descent = now - flight_computer->state_change_timestamp;
+
+			// nie sprawdzaj lądowania zaraz po wejściu w DESCENT (unikamy false-positive przy apogeum)
+			if (time_in_descent > MIN_DESCENT_TIME_BEFORE_LANDING_MS) {
+				if (fabsf(flight_computer->vertical_velocity) < LANDING_VELOCITY_THRESHOLD_MS) {
+					flight_computer->landed_detect_counter++;
+					if (flight_computer->landed_detect_counter >= LANDING_CONFIRM_SAMPLES) {
+						HAL_GPIO_WritePin(CAM_GPIO_Port, CAM_Pin, GPIO_PIN_RESET);
+						return STATE_LANDED;
+					}
+				} else {
+					flight_computer->landed_detect_counter = 0; // przerwana ciągłość - reset
+				}
+			}
+
+			// bezpiecznik: absolutny timeout jako backup, gdyby detekcja prędkości zawiodła
+			if (time_in_descent > MAX_DESCENT_MS) {
 				HAL_GPIO_WritePin(CAM_GPIO_Port, CAM_Pin, GPIO_PIN_RESET);
 				return STATE_LANDED;
 			}
 			break;
+		}
 		case STATE_ABORT:
 			// remain until manual reset
 			break;
@@ -563,7 +644,7 @@ void FlightComputer_handleCommand(FlightComputer* flight_computer){
 				flight_computer->camera = 0;
 				break;
 			case 7: // odpalenie spadochronu
-				FlightComputer_fireParachute(flight_computer);
+				FlightComputer_fireParachuteManual(flight_computer);
 				break;
 			case 8: // uruchamianie startu rakiety
 				break;
@@ -600,6 +681,8 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 		Sensors_bypass(flight_computer);
 	}
 
+	FlightComputer_updateVerticalVelocity(flight_computer, HAL_GetTick());
+
 	// odczyt napiecia
 	uint16_t adcValue;
 	adcValue = (uint16_t)HAL_ADC_GetValue(flight_computer->hadc);
@@ -627,7 +710,12 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	//breakaway wire check
 	if (!flight_computer->breakaway_wire_detached) {
 	    if (HAL_GPIO_ReadPin(BREAKAWAY_GPIO_Port, BREAKAWAY_Pin) == GPIO_PIN_SET) {
-	        flight_computer->breakaway_wire_detached = 1;
+	        flight_computer->breakaway_detect_counter++;
+	        if (flight_computer->breakaway_detect_counter >= BREAKAWAY_CONFIRM_SAMPLES) {
+	            flight_computer->breakaway_wire_detached = 1;
+	        }
+	    } else {
+	        flight_computer->breakaway_detect_counter = 0; // przerwana ciągłość - reset
 	    }
 	}
 

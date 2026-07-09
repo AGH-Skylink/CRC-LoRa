@@ -136,9 +136,6 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
-  uint8_t isSend = 65;
   HAL_GPIO_WritePin(led_state_GPIO_Port, led_state_Pin, GPIO_PIN_SET);
   HAL_Delay(1000);
   FlightComputer_init(&flight_computer, &hspi1, CS_Lora_GPIO_Port, CS_Lora_Pin, &hi2c1, &hadc1, &huart1, &huart2);
@@ -148,13 +145,8 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-//  uint8_t val = 1;
-//  HAL_UART_Transmit(&huart1, &val, 1, 100);
-//  GPS_Init_debug(&huart2, &huart1);
   while (1)
   {
-//	  GPS_Task_debug();
-//	  HAL_UART_Transmit(&huart1, &val, 1, 100);
 	  FlightComputer_loop(&flight_computer);
 
     /* USER CODE END WHILE */
