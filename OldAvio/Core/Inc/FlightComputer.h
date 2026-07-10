@@ -150,6 +150,8 @@ typedef struct{
 	//breakaway wire flag
 	uint8_t breakaway_wire_detached;
 	uint8_t breakaway_detect_counter;
+	// czas (HAL_GetTick) zerwania breakwire - do odliczania 9s do startu
+	uint32_t breakaway_wire_detach_time;
 
 	// Telemetria
 	int32_t time;

@@ -22,6 +22,9 @@
 #define LAUNCH_CONFIRM_SAMPLES   3   // liczba kolejnych cykli pętli powyżej progu
 #define BURNOUT_CONFIRM_SAMPLES  3
 #define BREAKAWAY_CONFIRM_SAMPLES 3
+// Telemetria/ARM nie jest wymagana do startu (brak telemetrii w locie - nie da sie kliknac ARM).
+// Po zerwaniu breakwire odliczamy ten czas i rakieta startuje automatycznie.
+#define BREAKWIRE_LAUNCH_DELAY_MS 9000
 #define FREEFALL_CONFIRM_SAMPLES 3
 #define APOGEE_CONFIRM_WINDOWS 2
 
@@ -391,6 +394,7 @@ void FlightComputer_init(FlightComputer* flight_computer, SPI_HandleTypeDef* lor
     //breakaway wire logic
     flight_computer->breakaway_wire_detached = 0;
     flight_computer->breakaway_detect_counter = 0;
+    flight_computer->breakaway_wire_detach_time = 0;
 
     flight_computer->prev_altitude_for_velocity = 0;
     flight_computer->prev_altitude_timestamp = 0;
@@ -523,20 +527,25 @@ int8_t FlightComputer_evaluateTransitions(FlightComputer* flight_computer) {
 				HAL_GPIO_WritePin(CAM_GPIO_Port, CAM_Pin, GPIO_PIN_SET);
 				return STATE_POWERED_ASCENT;
 			}
-			if (flight_computer->armed == 1){
-				if (flight_computer->breakaway_wire_detached){
+			// Warunek ARM/telemetria wylaczony - telemetria nie dziala w locie i nie da sie
+			// wyslac komendy ARM. Start jest teraz niezalezny od flight_computer->armed:
+			// po zerwaniu breakwire (wyciagnieciu klucza) odliczamy BREAKWIRE_LAUNCH_DELAY_MS
+			// i rakieta startuje automatycznie.
+			if (flight_computer->breakaway_wire_detached){
+				if (now - flight_computer->breakaway_wire_detach_time >= BREAKWIRE_LAUNCH_DELAY_MS) {
 					flight_computer->start_time = now;
 					return STATE_POWERED_ASCENT;
 				}
-				if (flight_computer->imu.accelerometer.acc_total > LAUNCH_DETECT_THRESHOLD_G * GRAVITY_EARTH){
-					flight_computer->launch_detect_counter++;
-					if (flight_computer->launch_detect_counter >= LAUNCH_CONFIRM_SAMPLES) {
-						flight_computer->start_time = now;
-						return STATE_POWERED_ASCENT;
-					}
-				} else {
-					flight_computer->launch_detect_counter = 0; // przerwana ciągłość - reset
+			}
+			// Backup: detekcja startu po przyspieszeniu, rowniez niezalezna od ARM
+			if (flight_computer->imu.accelerometer.acc_total > LAUNCH_DETECT_THRESHOLD_G * GRAVITY_EARTH){
+				flight_computer->launch_detect_counter++;
+				if (flight_computer->launch_detect_counter >= LAUNCH_CONFIRM_SAMPLES) {
+					flight_computer->start_time = now;
+					return STATE_POWERED_ASCENT;
 				}
+			} else {
+				flight_computer->launch_detect_counter = 0; // przerwana ciągłość - reset
 			}
 			break;
 		case STATE_POWERED_ASCENT:
@@ -713,6 +722,7 @@ void FlightComputer_loop(FlightComputer* flight_computer){
 	        flight_computer->breakaway_detect_counter++;
 	        if (flight_computer->breakaway_detect_counter >= BREAKAWAY_CONFIRM_SAMPLES) {
 	            flight_computer->breakaway_wire_detached = 1;
+	            flight_computer->breakaway_wire_detach_time = time_buff;
 	        }
 	    } else {
 	        flight_computer->breakaway_detect_counter = 0; // przerwana ciągłość - reset
